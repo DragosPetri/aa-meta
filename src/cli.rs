@@ -38,6 +38,9 @@ pub struct Cli {
     )]
     pub setup_completions: Option<Shell>,
 
+    #[arg(long, global = true, help = "Print verbose trace to stderr")]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -93,6 +96,11 @@ pub enum Command {
     Discover,
     #[command(about = "Print shell completion script for the given shell")]
     Completions { shell: Shell },
+    #[command(name = "_complete", hide = true)]
+    Complete {
+        subcommand: String,
+        partial: Option<String>,
+    },
 }
 
 impl Command {
@@ -109,6 +117,7 @@ impl Command {
             Command::Config { .. } => "config",
             Command::Discover => "discover",
             Command::Completions { .. } => "completions",
+            Command::Complete { .. } => "_complete",
         }
     }
 
@@ -125,6 +134,7 @@ impl Command {
             Command::Config { args } => args,
             Command::Discover => &[],
             Command::Completions { .. } => &[],
+            Command::Complete { .. } => &[],
         }
     }
 }
