@@ -1,9 +1,14 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+pub use clap_complete::Shell;
 
 #[derive(Debug, Parser)]
-#[command(name = "attach-meta", version, about = "Meta-tool for analog attachable tools")]
+#[command(
+    name = "attach-meta",
+    version,
+    about = "Meta-tool for analog attachable tools"
+)]
 pub struct Cli {
     #[arg(long, global = true, help = "Tool to use (overrides config default)")]
     pub tool: Option<String>,
@@ -11,14 +16,30 @@ pub struct Cli {
     #[arg(long, global = true, help = "Workfile path forwarded to the tool")]
     pub workfile: Option<PathBuf>,
 
-    #[arg(long, global = true, help = "Request machine-parseable output from the tool")]
+    #[arg(
+        long,
+        global = true,
+        help = "Request machine-parseable output from the tool"
+    )]
     pub json: bool,
 
-    #[arg(long, global = true, help = "Config file path (default: ~/.config/attach-meta/config.toml)")]
+    #[arg(
+        long,
+        global = true,
+        help = "Config file path (default: ~/.config/attach-meta/config.toml)"
+    )]
     pub config: Option<PathBuf>,
 
+    #[arg(
+        long,
+        global = true,
+        value_name = "SHELL",
+        help = "Install shell completions to the standard location and exit"
+    )]
+    pub setup_completions: Option<Shell>,
+
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -70,36 +91,40 @@ pub enum Command {
     },
     #[command(about = "Print discovery output for the active tool")]
     Discover,
+    #[command(about = "Print shell completion script for the given shell")]
+    Completions { shell: Shell },
 }
 
 impl Command {
     pub fn name(&self) -> &'static str {
         match self {
-            Command::Create { .. }   => "create",
-            Command::Read { .. }     => "read",
-            Command::Update { .. }   => "update",
-            Command::Delete { .. }   => "delete",
+            Command::Create { .. } => "create",
+            Command::Read { .. } => "read",
+            Command::Update { .. } => "update",
+            Command::Delete { .. } => "delete",
             Command::Validate { .. } => "validate",
             Command::Generate { .. } => "generate",
-            Command::Build { .. }    => "build",
-            Command::Deploy { .. }   => "deploy",
-            Command::Config { .. }   => "config",
-            Command::Discover        => "discover",
+            Command::Build { .. } => "build",
+            Command::Deploy { .. } => "deploy",
+            Command::Config { .. } => "config",
+            Command::Discover => "discover",
+            Command::Completions { .. } => "completions",
         }
     }
 
     pub fn trailing_args(&self) -> &[String] {
         match self {
-            Command::Create { args }   => args,
-            Command::Read { args }     => args,
-            Command::Update { args }   => args,
-            Command::Delete { args }   => args,
+            Command::Create { args } => args,
+            Command::Read { args } => args,
+            Command::Update { args } => args,
+            Command::Delete { args } => args,
             Command::Validate { args } => args,
             Command::Generate { args } => args,
-            Command::Build { args }    => args,
-            Command::Deploy { args }   => args,
-            Command::Config { args }   => args,
-            Command::Discover          => &[],
+            Command::Build { args } => args,
+            Command::Deploy { args } => args,
+            Command::Config { args } => args,
+            Command::Discover => &[],
+            Command::Completions { .. } => &[],
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -41,7 +41,9 @@ pub fn run_discovery(binary: &str) -> Result<DiscoveryResponse> {
     let output = std::process::Command::new(binary)
         .args(["discovery", "--json"])
         .output()
-        .with_context(|| format!("failed to run '{binary} discovery --json' — is '{binary}' on PATH?"))?;
+        .with_context(|| {
+            format!("failed to run '{binary} discovery --json' — is '{binary}' on PATH?")
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
