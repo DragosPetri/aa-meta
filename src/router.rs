@@ -138,10 +138,11 @@ pub fn dispatch(
 
     // discover is a special case: pass through directly to the tool's discovery command
     if matches!(command, Command::Discover) {
-        let mut extra = vec!["discovery"];
+        let mut extra = Vec::new();
         if json {
             extra.push("--json");
         }
+        extra.push("discovery");
         let status = std::process::Command::new(binary)
             .args(&extra)
             .stdout(Stdio::inherit())
@@ -164,19 +165,20 @@ pub fn dispatch(
         bail!("tool '{tool_name}' does not support '{cmd_name}'");
     }
 
-    let mut argv: Vec<&str> = entry.argv.iter().map(String::as_str).collect();
+    let mut argv: Vec<&str> = Vec::new();
+
+    if json {
+        argv.push("--json");
+    }
+
+    argv.extend(entry.argv.iter().map(String::as_str));
 
     if let Some(wf) = &workfile {
         argv.push("--workfile");
         argv.push(wf.to_str().unwrap_or_default());
     }
 
-    let user_args = command.trailing_args();
-    argv.extend(user_args.iter().map(String::as_str));
-
-    if json {
-        argv.push("--json");
-    }
+    argv.extend(command.trailing_args().iter().map(String::as_str));
 
     let status = std::process::Command::new(binary)
         .args(&argv)
