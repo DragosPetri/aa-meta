@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod discovery;
 mod router;
+mod schema;
 
 use std::path::PathBuf;
 
@@ -35,6 +36,11 @@ fn main() {
         return;
     }
 
+    if let Command::Schema = command {
+        print_schema(cli.json);
+        return;
+    }
+
     if let Command::Complete {
         subcommand,
         partial,
@@ -58,6 +64,44 @@ fn main() {
     if let Err(e) = router::dispatch(command, cli.tool, cli.workfile, cli.json, config) {
         eprintln!("attach-meta: {e}");
         std::process::exit(1);
+    }
+}
+
+fn print_schema(json: bool) {
+    let version = env!("CARGO_PKG_VERSION");
+    if json {
+        // Skeleton discovery JSON a tool author can copy and fill in.
+        println!("{{");
+        println!("  \"protocol_version\": \"{version}\",");
+        println!("  \"tool_name\": \"<your-tool-name>\",");
+        println!("  \"tool_version\": \"<your-tool-version>\",");
+        println!("  \"commands\": {{");
+        let cmds = schema::COMMANDS;
+        for (i, cmd) in cmds.iter().enumerate() {
+            let argv_json: String = cmd.argv.iter()
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let comma = if i < cmds.len() - 1 { "," } else { "" };
+            println!(
+                "    \"{}\": {{ \"argv\": [{argv_json}], \"supported\": true }}{comma}",
+                cmd.key
+            );
+        }
+        println!("  }}");
+        println!("}}");
+    } else {
+        println!("attach-meta protocol {version} — expected discovery commands\n");
+        let key_width = schema::COMMANDS.iter().map(|c| c.key.len()).max().unwrap_or(0);
+        for cmd in schema::COMMANDS {
+            let argv = cmd.argv.join(" ");
+            println!(
+                "  {:<key_width$}  argv: [{argv}]",
+                cmd.key,
+            );
+            println!("  {:<key_width$}  {}", "", cmd.description);
+            println!();
+        }
     }
 }
 
@@ -204,6 +248,7 @@ _attach-meta() {{
                 'deploy:Deploy built artifact to target'
                 'config:Set a config value on the active tool'
                 'discover:Print discovery output for the active tool'
+                'schema:Print the protocol command table'
                 'completions:Print shell completion script'
             )
             _describe 'command' commands

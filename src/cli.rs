@@ -185,6 +185,8 @@ pub enum Command {
     },
     #[command(about = "Print discovery output for the active tool")]
     Discover,
+    #[command(about = "Print the protocol command table (--json for skeleton discovery JSON)")]
+    Schema,
     #[command(about = "Print shell completion script for the given shell")]
     Completions { shell: Shell },
     #[command(name = "_complete", hide = true)]
@@ -207,6 +209,7 @@ impl Command {
             Command::Deploy { .. } => "deploy",
             Command::Config { .. } => "config",
             Command::Discover => "discover",
+            Command::Schema => "schema",
             Command::Completions { .. } => "completions",
             Command::Complete { .. } => "_complete",
         }
@@ -224,6 +227,7 @@ impl Command {
             Command::Deploy { args } => args,
             Command::Config { args } => args,
             Command::Discover => &[],
+            Command::Schema => &[],
             Command::Completions { .. } => &[],
             Command::Complete { .. } => &[],
         }
