@@ -77,6 +77,35 @@ impl CreateSubcommand {
     }
 }
 
+#[derive(Debug, Subcommand)]
+pub enum DeleteSubcommand {
+    #[command(about = "Delete a node")]
+    Node {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+    #[command(about = "Delete a property")]
+    Property {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+}
+
+impl DeleteSubcommand {
+    pub fn discovery_name(&self) -> &'static str {
+        match self {
+            DeleteSubcommand::Node { .. } => "delete_node",
+            DeleteSubcommand::Property { .. } => "delete_property",
+        }
+    }
+
+    pub fn trailing_args(&self) -> &[String] {
+        match self {
+            DeleteSubcommand::Node { args } | DeleteSubcommand::Property { args } => args,
+        }
+    }
+}
+
 // TODO: incomplete interface for sure
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -95,10 +124,10 @@ pub enum Command {
         #[arg(trailing_var_arg = true)]
         args: Vec<String>,
     },
-    #[command(about = "Delete nodes or primitives")]
+    #[command(about = "Delete a node or property")]
     Delete {
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
+        #[command(subcommand)]
+        subcommand: DeleteSubcommand,
     },
     #[command(about = "Validate workfile, node, or primitive")]
     Validate {
@@ -142,7 +171,7 @@ impl Command {
             Command::Create { subcommand } => subcommand.discovery_name(),
             Command::Read { .. } => "read",
             Command::Update { .. } => "update",
-            Command::Delete { .. } => "delete",
+            Command::Delete { subcommand } => subcommand.discovery_name(),
             Command::Validate { .. } => "validate",
             Command::Generate { .. } => "generate",
             Command::Build { .. } => "build",
@@ -159,7 +188,7 @@ impl Command {
             Command::Create { subcommand } => subcommand.trailing_args(),
             Command::Read { args } => args,
             Command::Update { args } => args,
-            Command::Delete { args } => args,
+            Command::Delete { subcommand } => subcommand.trailing_args(),
             Command::Validate { args } => args,
             Command::Generate { args } => args,
             Command::Build { args } => args,

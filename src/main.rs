@@ -98,14 +98,14 @@ fn setup_completions(
 fn generate_zsh_script(tool_name: &str) -> String {
     // The subcommands that accept tool arguments and should get dynamic completions.
     let dynamic = [
-        "read", "update", "delete", "validate", "generate", "build", "deploy", "config",
+        "read", "update", "validate", "generate", "build", "deploy", "config",
     ];
     let dynamic_cases: String = dynamic.iter().map(|cmd| {
         format!(
             "            ({cmd})\n                local -a tool_completions\n                tool_completions=(${{(f)\"$(attach-meta _complete {cmd} \"${{words[$CURRENT]}}\" 2>/dev/null)\"}})\n                compadd -a tool_completions\n            ;;\n",
         )
     }).collect();
-    // create has fixed subcommands (node/property), each of which gets dynamic tool completions.
+    // create/delete have fixed subcommands (node/property), each with dynamic tool completions.
     let create_case = concat!(
         "            (create)\n",
         "                if [[ $CURRENT -eq 2 ]]; then\n",
@@ -122,6 +122,28 @@ fn generate_zsh_script(tool_name: &str) -> String {
         "                        (property)\n",
         "                            local -a tool_completions\n",
         "                            tool_completions=(${(f)\"$(attach-meta _complete create_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            compadd -a tool_completions\n",
+        "                        ;;\n",
+        "                    esac\n",
+        "                fi\n",
+        "            ;;\n",
+    );
+    let delete_case = concat!(
+        "            (delete)\n",
+        "                if [[ $CURRENT -eq 2 ]]; then\n",
+        "                    local -a delete_subs\n",
+        "                    delete_subs=(node property)\n",
+        "                    _describe 'delete subcommand' delete_subs\n",
+        "                else\n",
+        "                    case $words[2] in\n",
+        "                        (node)\n",
+        "                            local -a tool_completions\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_node \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            compadd -a tool_completions\n",
+        "                        ;;\n",
+        "                        (property)\n",
+        "                            local -a tool_completions\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                    esac\n",
@@ -153,7 +175,7 @@ _attach-meta() {{
                 'create:Add a new node or property'
                 'read:Read values of nodes or primitives'
                 'update:Update primitive values'
-                'delete:Delete nodes or primitives'
+                'delete:Delete a node or property'
                 'validate:Validate workfile, node, or primitive'
                 'generate:Generate an artifact from the workfile'
                 'build:Build from artifact'
@@ -166,7 +188,7 @@ _attach-meta() {{
         ;;
         args)
             case $words[1] in
-{dynamic_cases}{create_case}            (completions)
+{dynamic_cases}{create_case}{delete_case}            (completions)
                 local -a shells
                 shells=(bash zsh fish elvish powershell)
                 _describe 'shell' shells
