@@ -48,13 +48,42 @@ pub struct Cli {
     pub command: Option<Command>,
 }
 
+#[derive(Debug, Subcommand)]
+pub enum CreateSubcommand {
+    #[command(about = "Add a new node")]
+    Node {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+    #[command(about = "Add a new property")]
+    Property {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+}
+
+impl CreateSubcommand {
+    pub fn discovery_name(&self) -> &'static str {
+        match self {
+            CreateSubcommand::Node { .. } => "create_node",
+            CreateSubcommand::Property { .. } => "create_property",
+        }
+    }
+
+    pub fn trailing_args(&self) -> &[String] {
+        match self {
+            CreateSubcommand::Node { args } | CreateSubcommand::Property { args } => args,
+        }
+    }
+}
+
 // TODO: incomplete interface for sure
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    #[command(about = "Add a new node or primitive")]
+    #[command(about = "Add a new node or property")]
     Create {
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
+        #[command(subcommand)]
+        subcommand: CreateSubcommand,
     },
     #[command(about = "Read values of nodes or primitives")]
     Read {
@@ -110,7 +139,7 @@ pub enum Command {
 impl Command {
     pub fn name(&self) -> &'static str {
         match self {
-            Command::Create { .. } => "create",
+            Command::Create { subcommand } => subcommand.discovery_name(),
             Command::Read { .. } => "read",
             Command::Update { .. } => "update",
             Command::Delete { .. } => "delete",
@@ -127,7 +156,7 @@ impl Command {
 
     pub fn trailing_args(&self) -> &[String] {
         match self {
-            Command::Create { args } => args,
+            Command::Create { subcommand } => subcommand.trailing_args(),
             Command::Read { args } => args,
             Command::Update { args } => args,
             Command::Delete { args } => args,

@@ -15,6 +15,9 @@ fn write_fake_tool(dir: &std::path::Path) -> std::path::PathBuf {
         &script,
         r#"#!/bin/sh
 case "$1" in
+    --json) shift ;;
+esac
+case "$1" in
     discovery)
         cat <<'JSON'
 {
@@ -22,16 +25,17 @@ case "$1" in
   "tool_name": "fake-attach-pickle",
   "tool_version": "0.1.0",
   "commands": {
-    "create":   { "argv": ["create"],   "supported": true },
-    "read":     { "argv": ["read"],     "supported": true },
-    "update":   { "argv": ["update"],   "supported": true },
-    "delete":   { "argv": ["delete"],   "supported": true },
-    "validate": { "argv": ["validate"], "supported": true },
-    "generate": { "argv": ["generate"], "supported": true },
-    "build":    { "argv": ["build"],    "supported": false },
-    "deploy":   { "argv": ["deploy"],   "supported": false },
-    "config":   { "argv": ["config"],   "supported": true },
-    "complete": { "argv": ["complete"], "supported": true }
+    "create_node":     { "argv": ["create", "node"],     "supported": true },
+    "create_property": { "argv": ["create", "property"], "supported": true },
+    "read":            { "argv": ["read"],                "supported": true },
+    "update":          { "argv": ["update"],              "supported": true },
+    "delete":          { "argv": ["delete"],              "supported": true },
+    "validate":        { "argv": ["validate"],            "supported": true },
+    "generate":        { "argv": ["generate"],            "supported": true },
+    "build":           { "argv": ["build"],               "supported": false },
+    "deploy":          { "argv": ["deploy"],              "supported": false },
+    "config":          { "argv": ["config"],              "supported": true },
+    "complete":        { "argv": ["complete"],            "supported": true }
   }
 }
 JSON
@@ -41,7 +45,7 @@ JSON
         subcommand="$2"
         partial="$3"
         case "$subcommand" in
-            create|read|update|delete|validate)
+            create_node|create_property|read|update|delete|validate)
                 for candidate in node:temperature node:pressure node:humidity primitive:threshold; do
                     case "$candidate" in
                         "$partial"*) echo "$candidate" ;;
@@ -93,7 +97,7 @@ fn run_complete(subcommand: &str, partial: &str) -> std::process::Output {
 
 #[test]
 fn complete_with_no_partial_returns_all_candidates() {
-    let out = run_complete("create", "");
+    let out = run_complete("create_node", "");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success());
     assert!(stdout.contains("node:temperature"));
@@ -104,7 +108,7 @@ fn complete_with_no_partial_returns_all_candidates() {
 
 #[test]
 fn complete_filters_by_partial_word() {
-    let out = run_complete("create", "node:");
+    let out = run_complete("create_node", "node:");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success());
     assert!(stdout.contains("node:temperature"));
@@ -115,7 +119,7 @@ fn complete_filters_by_partial_word() {
 
 #[test]
 fn complete_returns_nothing_for_unmatched_partial() {
-    let out = run_complete("create", "zzz");
+    let out = run_complete("create_node", "zzz");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success());
     assert!(stdout.trim().is_empty());

@@ -98,13 +98,36 @@ fn setup_completions(
 fn generate_zsh_script(tool_name: &str) -> String {
     // The subcommands that accept tool arguments and should get dynamic completions.
     let dynamic = [
-        "create", "read", "update", "delete", "validate", "generate", "build", "deploy", "config",
+        "read", "update", "delete", "validate", "generate", "build", "deploy", "config",
     ];
     let dynamic_cases: String = dynamic.iter().map(|cmd| {
         format!(
             "            ({cmd})\n                local -a tool_completions\n                tool_completions=(${{(f)\"$(attach-meta _complete {cmd} \"${{words[$CURRENT]}}\" 2>/dev/null)\"}})\n                compadd -a tool_completions\n            ;;\n",
         )
     }).collect();
+    // create has fixed subcommands (node/property), each of which gets dynamic tool completions.
+    let create_case = concat!(
+        "            (create)\n",
+        "                if [[ $CURRENT -eq 2 ]]; then\n",
+        "                    local -a create_subs\n",
+        "                    create_subs=(node property)\n",
+        "                    _describe 'create subcommand' create_subs\n",
+        "                else\n",
+        "                    case $words[2] in\n",
+        "                        (node)\n",
+        "                            local -a tool_completions\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete create_node \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            compadd -a tool_completions\n",
+        "                        ;;\n",
+        "                        (property)\n",
+        "                            local -a tool_completions\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete create_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            compadd -a tool_completions\n",
+        "                        ;;\n",
+        "                    esac\n",
+        "                fi\n",
+        "            ;;\n",
+    );
 
     format!(
         r#"#compdef attach-meta
@@ -127,7 +150,7 @@ _attach-meta() {{
         command)
             local -a commands
             commands=(
-                'create:Add a new node or primitive'
+                'create:Add a new node or property'
                 'read:Read values of nodes or primitives'
                 'update:Update primitive values'
                 'delete:Delete nodes or primitives'
@@ -143,7 +166,7 @@ _attach-meta() {{
         ;;
         args)
             case $words[1] in
-{dynamic_cases}            (completions)
+{dynamic_cases}{create_case}            (completions)
                 local -a shells
                 shells=(bash zsh fish elvish powershell)
                 _describe 'shell' shells
