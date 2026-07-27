@@ -36,6 +36,7 @@ pub fn load_config(override_path: Option<PathBuf>) -> Result<AppConfig> {
         .or_else(find_project_config)
         .unwrap_or_else(user_config_path);
 
+    // TODO: not conviced about silent defaults
     if !path.exists() {
         return Ok(AppConfig::default());
     }
@@ -47,6 +48,7 @@ pub fn load_config(override_path: Option<PathBuf>) -> Result<AppConfig> {
         .with_context(|| format!("failed to parse config file: {}", path.display()))
 }
 
+// TODO: not conviced about the walk up part
 /// Walk up from cwd looking for `.attach-meta.toml`.
 fn find_project_config() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;

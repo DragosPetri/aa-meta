@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 pub use clap_complete::Shell;
 
+// TODO: name tbd
 #[derive(Debug, Parser)]
 #[command(
     name = "attach-meta",
@@ -13,6 +14,7 @@ pub struct Cli {
     #[arg(long, global = true, help = "Tool to use (overrides config default)")]
     pub tool: Option<String>,
 
+    // TODO: not conviced only one workfile
     #[arg(long, global = true, help = "Workfile path forwarded to the tool")]
     pub workfile: Option<PathBuf>,
 
@@ -23,6 +25,7 @@ pub struct Cli {
     )]
     pub json: bool,
 
+    // TODO: not conviced only file possible, maybe also config folder or workspace
     #[arg(
         long,
         global = true,
@@ -45,6 +48,7 @@ pub struct Cli {
     pub command: Option<Command>,
 }
 
+// TODO: incomplete interface for sure
 #[derive(Debug, Subcommand)]
 pub enum Command {
     #[command(about = "Add a new node or primitive")]

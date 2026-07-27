@@ -39,7 +39,7 @@ fn default_supported() -> bool {
 
 pub fn run_discovery(binary: &str) -> Result<DiscoveryResponse> {
     let output = std::process::Command::new(binary)
-        .args(["discovery", "--json"])
+        .args(["--json", "discovery"])
         .output()
         .with_context(|| {
             format!("failed to run '{binary} discovery --json' — is '{binary}' on PATH?")
