@@ -27,7 +27,8 @@ case "$1" in
   "commands": {
     "create_node":     { "argv": ["create", "node"],     "supported": true },
     "create_property": { "argv": ["create", "property"], "supported": true },
-    "read":            { "argv": ["read"],                "supported": true },
+    "read_node":       { "argv": ["read", "node"],       "supported": true },
+    "read_property":   { "argv": ["read", "property"],   "supported": true },
     "update":          { "argv": ["update"],              "supported": true },
     "delete_node":     { "argv": ["delete", "node"],     "supported": true },
     "delete_property": { "argv": ["delete", "property"], "supported": true },
@@ -46,7 +47,7 @@ JSON
         subcommand="$2"
         partial="$3"
         case "$subcommand" in
-            create_node|create_property|delete_node|delete_property|read|update|validate)
+            create_node|create_property|read_node|read_property|delete_node|delete_property|update|validate)
                 for candidate in node:temperature node:pressure node:humidity primitive:threshold; do
                     case "$candidate" in
                         "$partial"*) echo "$candidate" ;;

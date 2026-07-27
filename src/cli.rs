@@ -106,6 +106,35 @@ impl DeleteSubcommand {
     }
 }
 
+#[derive(Debug, Subcommand)]
+pub enum ReadSubcommand {
+    #[command(about = "Read values of a node")]
+    Node {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+    #[command(about = "Read values of a property")]
+    Property {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+}
+
+impl ReadSubcommand {
+    pub fn discovery_name(&self) -> &'static str {
+        match self {
+            ReadSubcommand::Node { .. } => "read_node",
+            ReadSubcommand::Property { .. } => "read_property",
+        }
+    }
+
+    pub fn trailing_args(&self) -> &[String] {
+        match self {
+            ReadSubcommand::Node { args } | ReadSubcommand::Property { args } => args,
+        }
+    }
+}
+
 // TODO: incomplete interface for sure
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -114,10 +143,10 @@ pub enum Command {
         #[command(subcommand)]
         subcommand: CreateSubcommand,
     },
-    #[command(about = "Read values of nodes or primitives")]
+    #[command(about = "Read values of a node or property")]
     Read {
-        #[arg(trailing_var_arg = true)]
-        args: Vec<String>,
+        #[command(subcommand)]
+        subcommand: ReadSubcommand,
     },
     #[command(about = "Update primitive values")]
     Update {
@@ -169,7 +198,7 @@ impl Command {
     pub fn name(&self) -> &'static str {
         match self {
             Command::Create { subcommand } => subcommand.discovery_name(),
-            Command::Read { .. } => "read",
+            Command::Read { subcommand } => subcommand.discovery_name(),
             Command::Update { .. } => "update",
             Command::Delete { subcommand } => subcommand.discovery_name(),
             Command::Validate { .. } => "validate",
@@ -186,7 +215,7 @@ impl Command {
     pub fn trailing_args(&self) -> &[String] {
         match self {
             Command::Create { subcommand } => subcommand.trailing_args(),
-            Command::Read { args } => args,
+            Command::Read { subcommand } => subcommand.trailing_args(),
             Command::Update { args } => args,
             Command::Delete { subcommand } => subcommand.trailing_args(),
             Command::Validate { args } => args,
