@@ -62,13 +62,26 @@ pub fn run_discovery(binary: &str) -> Result<DiscoveryResponse> {
 }
 
 fn check_protocol_version(version: &str, binary: &str) -> Result<()> {
-    let tool_major = version.split('.').next().unwrap_or("0");
-    let our_major = env!("CARGO_PKG_VERSION").split('.').next().unwrap_or("0");
+    let our_version = env!("CARGO_PKG_VERSION");
+    let breaking = |v: &str| {
+        let mut parts = v.split('.');
+        let major = parts.next().unwrap_or("0");
+        if major == "0" {
+            // semver: 0.x — minor is breaking
+            format!("0.{}", parts.next().unwrap_or("0"))
+        } else {
+            major.to_string()
+        }
+    };
 
-    if tool_major != our_major {
+    let tool_breaking = breaking(version);
+    let our_breaking = breaking(our_version);
+
+    if tool_breaking != our_breaking {
         bail!(
             "protocol version mismatch: '{binary}' reports '{version}', \
-             attach-meta is '{our_major}.x' — major versions must match"
+             attach-meta is '{our_version}' — breaking segment must match \
+             (got '{tool_breaking}', need '{our_breaking}')"
         );
     }
 

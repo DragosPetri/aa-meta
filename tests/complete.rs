@@ -21,7 +21,7 @@ case "$1" in
     discovery)
         cat <<'JSON'
 {
-  "protocol_version": "0.1.0",
+  "protocol_version": "0.2.0",
   "tool_name": "fake-attach-pickle",
   "tool_version": "0.1.0",
   "commands": {
