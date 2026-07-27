@@ -4,19 +4,73 @@ pub struct CommandSpec {
     pub description: &'static str,
 }
 
-pub const COMMANDS: &[CommandSpec] = &[
-    CommandSpec { key: "create_node",     argv: &["create", "node"],     description: "Add a new node" },
-    CommandSpec { key: "create_property", argv: &["create", "property"], description: "Add a new property" },
-    CommandSpec { key: "read_node",       argv: &["read",   "node"],     description: "Read values of a node" },
-    CommandSpec { key: "read_property",   argv: &["read",   "property"], description: "Read values of a property" },
-    CommandSpec { key: "update",          argv: &["update"],             description: "Update primitive values" },
-    CommandSpec { key: "delete_node",     argv: &["delete", "node"],     description: "Delete a node" },
-    CommandSpec { key: "delete_property", argv: &["delete", "property"], description: "Delete a property" },
-    CommandSpec { key: "validate",        argv: &["validate"],           description: "Validate workfile, node, or primitive" },
-    CommandSpec { key: "generate",        argv: &["generate"],           description: "Generate an artifact from workfile" },
-    CommandSpec { key: "build",           argv: &["build"],              description: "Build from artifact" },
-    CommandSpec { key: "deploy",          argv: &["deploy"],             description: "Deploy built artifact to target" },
-    CommandSpec { key: "config",          argv: &["config"],             description: "Set a config value" },
-    // optional — advertise to enable shell completions
-    CommandSpec { key: "complete",        argv: &["complete"],           description: "Return completion candidates for a subcommand (optional)" },
-];
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscoveryKey {
+    CreateNode,
+    CreateProperty,
+    ReadNode,
+    ReadProperty,
+    Update,
+    DeleteNode,
+    DeleteProperty,
+    Validate,
+    Generate,
+    Build,
+    Deploy,
+    Config,
+    Complete,
+}
+
+impl DiscoveryKey {
+    pub fn spec(self) -> CommandSpec {
+        match self {
+            DiscoveryKey::CreateNode     => CommandSpec { key: "create_node",     argv: &["create", "node"],     description: "Add a new node" },
+            DiscoveryKey::CreateProperty => CommandSpec { key: "create_property", argv: &["create", "property"], description: "Add a new property" },
+            DiscoveryKey::ReadNode       => CommandSpec { key: "read_node",       argv: &["read",   "node"],     description: "Read values of a node" },
+            DiscoveryKey::ReadProperty   => CommandSpec { key: "read_property",   argv: &["read",   "property"], description: "Read values of a property" },
+            DiscoveryKey::Update         => CommandSpec { key: "update",          argv: &["update"],             description: "Update primitive values" },
+            DiscoveryKey::DeleteNode     => CommandSpec { key: "delete_node",     argv: &["delete", "node"],     description: "Delete a node" },
+            DiscoveryKey::DeleteProperty => CommandSpec { key: "delete_property", argv: &["delete", "property"], description: "Delete a property" },
+            DiscoveryKey::Validate       => CommandSpec { key: "validate",        argv: &["validate"],           description: "Validate workfile, node, or primitive" },
+            DiscoveryKey::Generate       => CommandSpec { key: "generate",        argv: &["generate"],           description: "Generate an artifact from workfile" },
+            DiscoveryKey::Build          => CommandSpec { key: "build",           argv: &["build"],              description: "Build from artifact" },
+            DiscoveryKey::Deploy         => CommandSpec { key: "deploy",          argv: &["deploy"],             description: "Deploy built artifact to target" },
+            DiscoveryKey::Config         => CommandSpec { key: "config",          argv: &["config"],             description: "Set a config value" },
+            DiscoveryKey::Complete       => CommandSpec { key: "complete",        argv: &["complete"],           description: "Return completion candidates for a subcommand (optional)" },
+        }
+    }
+
+    // Manual list used for documentation and schema output. Must stay in sync with
+    // the enum variants above — a missing entry here means it's absent from
+    // `attach-meta schema` output but does not affect dispatch correctness.
+    pub const ALL: &'static [DiscoveryKey] = &[
+        DiscoveryKey::CreateNode,
+        DiscoveryKey::CreateProperty,
+        DiscoveryKey::ReadNode,
+        DiscoveryKey::ReadProperty,
+        DiscoveryKey::Update,
+        DiscoveryKey::DeleteNode,
+        DiscoveryKey::DeleteProperty,
+        DiscoveryKey::Validate,
+        DiscoveryKey::Generate,
+        DiscoveryKey::Build,
+        DiscoveryKey::Deploy,
+        DiscoveryKey::Config,
+        DiscoveryKey::Complete,
+    ];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn all_keys_are_unique() {
+        let mut seen = HashSet::new();
+        for key in DiscoveryKey::ALL {
+            let k = key.spec().key;
+            assert!(seen.insert(k), "duplicate key in DiscoveryKey::ALL: {k}");
+        }
+    }
+}

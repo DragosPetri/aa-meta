@@ -154,7 +154,8 @@ pub fn dispatch(
 
     let discovery = run_discovery(binary)?;
 
-    let cmd_name = command.name();
+    let key = command.key();
+    let cmd_name = key.spec().key;
     let entry = discovery.commands.get(cmd_name).ok_or_else(|| {
         anyhow::anyhow!(
             "tool '{tool_name}' does not advertise a '{cmd_name}' command in its discovery output"

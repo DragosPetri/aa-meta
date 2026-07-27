@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 pub use clap_complete::Shell;
 
+use crate::schema::DiscoveryKey;
+
 // TODO: name tbd
 #[derive(Debug, Parser)]
 #[command(
@@ -63,10 +65,10 @@ pub enum CreateSubcommand {
 }
 
 impl CreateSubcommand {
-    pub fn discovery_name(&self) -> &'static str {
+    pub fn discovery_key(&self) -> DiscoveryKey {
         match self {
-            CreateSubcommand::Node { .. } => "create_node",
-            CreateSubcommand::Property { .. } => "create_property",
+            CreateSubcommand::Node { .. } => DiscoveryKey::CreateNode,
+            CreateSubcommand::Property { .. } => DiscoveryKey::CreateProperty,
         }
     }
 
@@ -92,10 +94,10 @@ pub enum DeleteSubcommand {
 }
 
 impl DeleteSubcommand {
-    pub fn discovery_name(&self) -> &'static str {
+    pub fn discovery_key(&self) -> DiscoveryKey {
         match self {
-            DeleteSubcommand::Node { .. } => "delete_node",
-            DeleteSubcommand::Property { .. } => "delete_property",
+            DeleteSubcommand::Node { .. } => DiscoveryKey::DeleteNode,
+            DeleteSubcommand::Property { .. } => DiscoveryKey::DeleteProperty,
         }
     }
 
@@ -121,10 +123,10 @@ pub enum ReadSubcommand {
 }
 
 impl ReadSubcommand {
-    pub fn discovery_name(&self) -> &'static str {
+    pub fn discovery_key(&self) -> DiscoveryKey {
         match self {
-            ReadSubcommand::Node { .. } => "read_node",
-            ReadSubcommand::Property { .. } => "read_property",
+            ReadSubcommand::Node { .. } => DiscoveryKey::ReadNode,
+            ReadSubcommand::Property { .. } => DiscoveryKey::ReadProperty,
         }
     }
 
@@ -197,21 +199,21 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn name(&self) -> &'static str {
+    pub fn key(&self) -> DiscoveryKey {
         match self {
-            Command::Create { subcommand } => subcommand.discovery_name(),
-            Command::Read { subcommand } => subcommand.discovery_name(),
-            Command::Update { .. } => "update",
-            Command::Delete { subcommand } => subcommand.discovery_name(),
-            Command::Validate { .. } => "validate",
-            Command::Generate { .. } => "generate",
-            Command::Build { .. } => "build",
-            Command::Deploy { .. } => "deploy",
-            Command::Config { .. } => "config",
-            Command::Discover => "discover",
-            Command::Schema => "schema",
-            Command::Completions { .. } => "completions",
-            Command::Complete { .. } => "_complete",
+            Command::Create { subcommand } => subcommand.discovery_key(),
+            Command::Read { subcommand } => subcommand.discovery_key(),
+            Command::Update { .. } => DiscoveryKey::Update,
+            Command::Delete { subcommand } => subcommand.discovery_key(),
+            Command::Validate { .. } => DiscoveryKey::Validate,
+            Command::Generate { .. } => DiscoveryKey::Generate,
+            Command::Build { .. } => DiscoveryKey::Build,
+            Command::Deploy { .. } => DiscoveryKey::Deploy,
+            Command::Config { .. } => DiscoveryKey::Config,
+            // These variants are handled before dispatch is reached.
+            Command::Discover | Command::Schema | Command::Completions { .. } | Command::Complete { .. } => {
+                unreachable!("non-dispatch command reached key()")
+            }
         }
     }
 

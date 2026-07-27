@@ -68,6 +68,7 @@ fn main() {
 }
 
 fn print_schema(json: bool) {
+    use schema::DiscoveryKey;
     let version = env!("CARGO_PKG_VERSION");
     if json {
         // Skeleton discovery JSON a tool author can copy and fill in.
@@ -76,30 +77,29 @@ fn print_schema(json: bool) {
         println!("  \"tool_name\": \"<your-tool-name>\",");
         println!("  \"tool_version\": \"<your-tool-version>\",");
         println!("  \"commands\": {{");
-        let cmds = schema::COMMANDS;
-        for (i, cmd) in cmds.iter().enumerate() {
-            let argv_json: String = cmd.argv.iter()
+        let all = DiscoveryKey::ALL;
+        for (i, dk) in all.iter().enumerate() {
+            let spec = dk.spec();
+            let argv_json: String = spec.argv.iter()
                 .map(|s| format!("\"{s}\""))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let comma = if i < cmds.len() - 1 { "," } else { "" };
+            let comma = if i < all.len() - 1 { "," } else { "" };
             println!(
                 "    \"{}\": {{ \"argv\": [{argv_json}], \"supported\": true }}{comma}",
-                cmd.key
+                spec.key
             );
         }
         println!("  }}");
         println!("}}");
     } else {
         println!("attach-meta protocol {version} — expected discovery commands\n");
-        let key_width = schema::COMMANDS.iter().map(|c| c.key.len()).max().unwrap_or(0);
-        for cmd in schema::COMMANDS {
-            let argv = cmd.argv.join(" ");
-            println!(
-                "  {:<key_width$}  argv: [{argv}]",
-                cmd.key,
-            );
-            println!("  {:<key_width$}  {}", "", cmd.description);
+        let key_width = DiscoveryKey::ALL.iter().map(|dk| dk.spec().key.len()).max().unwrap_or(0);
+        for dk in DiscoveryKey::ALL {
+            let spec = dk.spec();
+            let argv = spec.argv.join(" ");
+            println!("  {:<key_width$}  argv: [{argv}]", spec.key);
+            println!("  {:<key_width$}  {}", "", spec.description);
             println!();
         }
     }
