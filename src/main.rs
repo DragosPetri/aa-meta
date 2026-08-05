@@ -44,12 +44,14 @@ fn main() {
     if let Command::Complete {
         subcommand,
         partial,
+        tokens,
     } = command
     {
         let config = config::load_config(cli.config.clone()).unwrap_or_default();
         router::run_complete(
             &subcommand,
             partial.as_deref().unwrap_or(""),
+            &tokens,
             cli.tool,
             config,
             cli.verbose,
@@ -142,11 +144,11 @@ fn setup_completions(
 fn generate_zsh_script(tool_name: &str) -> String {
     // The subcommands that accept tool arguments and should get dynamic completions.
     let dynamic = [
-        "update", "validate", "generate", "build", "deploy", "config",
+        "update", "validate", "generate", "build", "deploy", "config", "init", "list-devices",
     ];
     let dynamic_cases: String = dynamic.iter().map(|cmd| {
         format!(
-            "            ({cmd})\n                local -a tool_completions\n                tool_completions=(${{(f)\"$(attach-meta _complete {cmd} \"${{words[$CURRENT]}}\" 2>/dev/null)\"}})\n                compadd -a tool_completions\n            ;;\n",
+            "            ({cmd})\n                local -a _pos_tokens tool_completions\n                _pos_tokens=(${{(M)words[2,$(($CURRENT-1))]:#^-*}})\n                tool_completions=(${{(f)\"$(attach-meta _complete {cmd} \"${{words[$CURRENT]}}\" \"${{_pos_tokens[@]}}\" 2>/dev/null)\"}})\n                compadd -a tool_completions\n            ;;\n",
         )
     }).collect();
     // create/delete have fixed subcommands (node/property), each with dynamic tool completions.
@@ -154,18 +156,25 @@ fn generate_zsh_script(tool_name: &str) -> String {
         "            (create)\n",
         "                if [[ $CURRENT -eq 2 ]]; then\n",
         "                    local -a create_subs\n",
-        "                    create_subs=(node property)\n",
+        "                    create_subs=(node property workfile)\n",
         "                    _describe 'create subcommand' create_subs\n",
         "                else\n",
+        "                    local -a _pos_tokens\n",
+        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
         "                    case $words[2] in\n",
         "                        (node)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete create_node \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete create_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                        (property)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete create_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete create_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
+        "                            compadd -a tool_completions\n",
+        "                        ;;\n",
+        "                        (workfile)\n",
+        "                            local -a tool_completions\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete create_workfile \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                    esac\n",
@@ -179,15 +188,17 @@ fn generate_zsh_script(tool_name: &str) -> String {
         "                    read_subs=(node property)\n",
         "                    _describe 'read subcommand' read_subs\n",
         "                else\n",
+        "                    local -a _pos_tokens\n",
+        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
         "                    case $words[2] in\n",
         "                        (node)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete read_node \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete read_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                        (property)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete read_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete read_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                    esac\n",
@@ -201,15 +212,17 @@ fn generate_zsh_script(tool_name: &str) -> String {
         "                    delete_subs=(node property)\n",
         "                    _describe 'delete subcommand' delete_subs\n",
         "                else\n",
+        "                    local -a _pos_tokens\n",
+        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
         "                    case $words[2] in\n",
         "                        (node)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_node \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                        (property)\n",
         "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_property \"${words[$CURRENT]}\" 2>/dev/null)\"})\n",
+        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
         "                            compadd -a tool_completions\n",
         "                        ;;\n",
         "                    esac\n",
@@ -247,6 +260,8 @@ _attach-meta() {{
                 'build:Build from artifact'
                 'deploy:Deploy built artifact to target'
                 'config:Set a config value on the active tool'
+                'init:Initialize a new workfile or project'
+                'list-devices:List available devices'
                 'discover:Print discovery output for the active tool'
                 'schema:Print the protocol command table'
                 'completions:Print shell completion script'

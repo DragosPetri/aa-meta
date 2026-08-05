@@ -8,6 +8,7 @@ pub struct CommandSpec {
 pub enum DiscoveryKey {
     CreateNode,
     CreateProperty,
+    CreateWorkfile,
     ReadNode,
     ReadProperty,
     Update,
@@ -18,6 +19,8 @@ pub enum DiscoveryKey {
     Build,
     Deploy,
     Config,
+    Init,
+    ListDevices,
     Complete,
 }
 
@@ -26,6 +29,7 @@ impl DiscoveryKey {
         match self {
             DiscoveryKey::CreateNode     => CommandSpec { key: "create_node",     argv: &["create", "node"],     description: "Add a new node" },
             DiscoveryKey::CreateProperty => CommandSpec { key: "create_property", argv: &["create", "property"], description: "Add a new property" },
+            DiscoveryKey::CreateWorkfile => CommandSpec { key: "create_workfile", argv: &["create", "workfile"], description: "Create a new workfile" },
             DiscoveryKey::ReadNode       => CommandSpec { key: "read_node",       argv: &["read",   "node"],     description: "Read values of a node" },
             DiscoveryKey::ReadProperty   => CommandSpec { key: "read_property",   argv: &["read",   "property"], description: "Read values of a property" },
             DiscoveryKey::Update         => CommandSpec { key: "update",          argv: &["update"],             description: "Update primitive values" },
@@ -36,6 +40,8 @@ impl DiscoveryKey {
             DiscoveryKey::Build          => CommandSpec { key: "build",           argv: &["build"],              description: "Build from artifact" },
             DiscoveryKey::Deploy         => CommandSpec { key: "deploy",          argv: &["deploy"],             description: "Deploy built artifact to target" },
             DiscoveryKey::Config         => CommandSpec { key: "config",          argv: &["config"],             description: "Set a config value" },
+            DiscoveryKey::Init          => CommandSpec { key: "init",            argv: &["init"],               description: "Initialize a new workfile or project" },
+            DiscoveryKey::ListDevices   => CommandSpec { key: "list_devices",    argv: &["list-devices"],       description: "List available devices" },
             DiscoveryKey::Complete       => CommandSpec { key: "complete",        argv: &["complete"],           description: "Return completion candidates for a subcommand (optional)" },
         }
     }
@@ -46,6 +52,7 @@ impl DiscoveryKey {
     pub const ALL: &'static [DiscoveryKey] = &[
         DiscoveryKey::CreateNode,
         DiscoveryKey::CreateProperty,
+        DiscoveryKey::CreateWorkfile,
         DiscoveryKey::ReadNode,
         DiscoveryKey::ReadProperty,
         DiscoveryKey::Update,
@@ -56,6 +63,8 @@ impl DiscoveryKey {
         DiscoveryKey::Build,
         DiscoveryKey::Deploy,
         DiscoveryKey::Config,
+        DiscoveryKey::Init,
+        DiscoveryKey::ListDevices,
         DiscoveryKey::Complete,
     ];
 }

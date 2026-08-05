@@ -21,7 +21,7 @@ case "$1" in
     discovery)
         cat <<'JSON'
 {
-  "protocol_version": "0.2.0",
+  "protocol_version": "0.2.1",
   "tool_name": "fake-attach-pickle",
   "tool_version": "0.1.0",
   "commands": {
@@ -37,17 +37,23 @@ case "$1" in
     "build":           { "argv": ["build"],               "supported": false },
     "deploy":          { "argv": ["deploy"],              "supported": false },
     "config":          { "argv": ["config"],              "supported": true },
+    "create_workfile": { "argv": ["create", "workfile"], "supported": true },
+    "init":            { "argv": ["init"],                "supported": true },
+    "list_devices":    { "argv": ["list-devices"],        "supported": true },
     "complete":        { "argv": ["complete"],            "supported": true }
   }
 }
 JSON
         ;;
     complete)
-        # $2 = subcommand, $3 = partial word (may be empty)
+        # $2 = subcommand, $3 = partial word (may be empty), $4+ = already-typed positional tokens
         subcommand="$2"
         partial="$3"
+        shift 3
+        token_count=$#
         case "$subcommand" in
-            create_node|create_property|read_node|read_property|delete_node|delete_property|update|validate)
+            create_node|create_property|create_workfile|read_node|read_property|delete_node|delete_property|update|validate|init|list_devices)
+                echo "token_count:$token_count"
                 for candidate in node:temperature node:pressure node:humidity primitive:threshold; do
                     case "$candidate" in
                         "$partial"*) echo "$candidate" ;;
@@ -86,15 +92,19 @@ fn write_config(dir: &std::path::Path, binary: &std::path::Path) -> std::path::P
 }
 
 fn run_complete(subcommand: &str, partial: &str) -> std::process::Output {
+    run_complete_with_tokens(subcommand, partial, &[])
+}
+
+fn run_complete_with_tokens(subcommand: &str, partial: &str, tokens: &[&str]) -> std::process::Output {
     let dir = tempfile::tempdir().unwrap();
     let tool = write_fake_tool(dir.path());
     let config = write_config(dir.path(), &tool);
 
-    Command::new(attach_meta())
-        .args(["--config", config.to_str().unwrap()])
+    let mut cmd = Command::new(attach_meta());
+    cmd.args(["--config", config.to_str().unwrap()])
         .args(["_complete", subcommand, partial])
-        .output()
-        .unwrap()
+        .args(tokens);
+    cmd.output().unwrap()
 }
 
 #[test]
@@ -120,11 +130,12 @@ fn complete_filters_by_partial_word() {
 }
 
 #[test]
-fn complete_returns_nothing_for_unmatched_partial() {
+fn complete_returns_no_candidates_for_unmatched_partial() {
     let out = run_complete("create_node", "zzz");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success());
-    assert!(stdout.trim().is_empty());
+    assert!(!stdout.contains("node:"));
+    assert!(!stdout.contains("primitive:"));
 }
 
 #[test]
@@ -144,4 +155,22 @@ fn complete_is_silent_for_subcommand_with_no_candidates() {
     // fake tool doesn't implement completions for 'config' — must exit 0 and print nothing
     assert!(out.status.success());
     assert!(stdout.trim().is_empty());
+}
+
+#[test]
+fn complete_forwards_positional_tokens() {
+    let out = run_complete_with_tokens("create_node", "node:", &["already-typed-arg"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success());
+    // fake tool echoes how many extra tokens it received
+    assert!(stdout.contains("token_count:1"), "expected token_count:1, got: {stdout}");
+    assert!(stdout.contains("node:temperature"));
+}
+
+#[test]
+fn complete_forwards_multiple_positional_tokens() {
+    let out = run_complete_with_tokens("update", "", &["tok0", "tok1", "tok2"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success());
+    assert!(stdout.contains("token_count:3"), "expected token_count:3, got: {stdout}");
 }

@@ -12,6 +12,7 @@ use crate::discovery::run_discovery;
 pub fn run_complete(
     subcommand: &str,
     partial: &str,
+    tokens: &[String],
     tool_override: Option<String>,
     config: AppConfig,
     verbose: bool,
@@ -78,10 +79,11 @@ pub fn run_complete(
         }
     }
 
-    let argv = ["complete", subcommand, partial];
+    let mut argv: Vec<&str> = vec!["complete", subcommand, partial];
+    argv.extend(tokens.iter().map(String::as_str));
     trace!("calling: {} {}", tool.binary, argv.join(" "));
 
-    let output = match std::process::Command::new(&tool.binary).args(argv).output() {
+    let output = match std::process::Command::new(&tool.binary).args(&argv).output() {
         Ok(o) => o,
         Err(e) => {
             trace!("failed to run binary: {e}");

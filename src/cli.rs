@@ -62,6 +62,11 @@ pub enum CreateSubcommand {
         #[arg(trailing_var_arg = true)]
         args: Vec<String>,
     },
+    #[command(about = "Create a new workfile")]
+    Workfile {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
 }
 
 impl CreateSubcommand {
@@ -69,12 +74,15 @@ impl CreateSubcommand {
         match self {
             CreateSubcommand::Node { .. } => DiscoveryKey::CreateNode,
             CreateSubcommand::Property { .. } => DiscoveryKey::CreateProperty,
+            CreateSubcommand::Workfile { .. } => DiscoveryKey::CreateWorkfile,
         }
     }
 
     pub fn trailing_args(&self) -> &[String] {
         match self {
-            CreateSubcommand::Node { args } | CreateSubcommand::Property { args } => args,
+            CreateSubcommand::Node { args }
+            | CreateSubcommand::Property { args }
+            | CreateSubcommand::Workfile { args } => args,
         }
     }
 }
@@ -185,6 +193,16 @@ pub enum Command {
         #[arg(trailing_var_arg = true)]
         args: Vec<String>,
     },
+    #[command(about = "Initialize a new workfile or project")]
+    Init {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
+    #[command(about = "List available devices")]
+    ListDevices {
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+    },
     #[command(about = "Print discovery output for the active tool")]
     Discover,
     #[command(about = "Print the protocol command table (--json for skeleton discovery JSON)")]
@@ -195,6 +213,8 @@ pub enum Command {
     Complete {
         subcommand: String,
         partial: Option<String>,
+        #[arg(trailing_var_arg = true)]
+        tokens: Vec<String>,
     },
 }
 
@@ -210,6 +230,8 @@ impl Command {
             Command::Build { .. } => DiscoveryKey::Build,
             Command::Deploy { .. } => DiscoveryKey::Deploy,
             Command::Config { .. } => DiscoveryKey::Config,
+            Command::Init { .. } => DiscoveryKey::Init,
+            Command::ListDevices { .. } => DiscoveryKey::ListDevices,
             // These variants are handled before dispatch is reached.
             Command::Discover | Command::Schema | Command::Completions { .. } | Command::Complete { .. } => {
                 unreachable!("non-dispatch command reached key()")
@@ -228,6 +250,8 @@ impl Command {
             Command::Build { args } => args,
             Command::Deploy { args } => args,
             Command::Config { args } => args,
+            Command::Init { args } => args,
+            Command::ListDevices { args } => args,
             Command::Discover => &[],
             Command::Schema => &[],
             Command::Completions { .. } => &[],
