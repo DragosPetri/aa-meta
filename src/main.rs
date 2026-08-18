@@ -14,7 +14,7 @@ fn main() {
     let cli = Cli::parse();
 
     if let Some(shell) = cli.setup_completions {
-        if let Err(e) = setup_completions(shell, cli.tool.clone(), cli.config.clone()) {
+        if let Err(e) = setup_completions(shell, cli.config.as_deref()) {
             eprintln!("attach-meta: {e}");
             std::process::exit(1);
         }
@@ -41,17 +41,15 @@ fn main() {
         return;
     }
 
-    if let Command::Complete {
-        subcommand,
-        partial,
-        tokens,
+    if let Command::DoubleComplete {
+        current_word_index,
+        words,
     } = command
     {
         let config = config::load_config(cli.config.clone()).unwrap_or_default();
-        router::run_complete(
-            &subcommand,
-            partial.as_deref().unwrap_or(""),
-            &tokens,
+        router::run_double_complete(
+            current_word_index,
+            &words,
             cli.tool,
             config,
             cli.verbose,
@@ -107,11 +105,7 @@ fn print_schema(json: bool) {
     }
 }
 
-fn setup_completions(
-    shell: Shell,
-    tool: Option<String>,
-    config_path: Option<PathBuf>,
-) -> anyhow::Result<()> {
+fn setup_completions(shell: Shell, config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
     let path = completion_path(shell)?;
 
     if let Some(parent) = path.parent() {
@@ -119,14 +113,9 @@ fn setup_completions(
     }
 
     let content = match shell {
-        Shell::Zsh => {
-            let config = config::load_config(config_path).unwrap_or_default();
-            let tool_name = tool
-                .as_deref()
-                .or(config.meta.default_tool.as_deref())
-                .unwrap_or("(none)");
-            generate_zsh_script(tool_name)
-        }
+        Shell::Zsh => generate_zsh_script(config_path),
+        Shell::Bash => generate_bash_script(config_path),
+        Shell::Fish => generate_fish_script(config_path),
         _ => {
             let mut buf = Vec::new();
             generate(shell, &mut Cli::command(), "attach-meta", &mut buf);
@@ -141,146 +130,77 @@ fn setup_completions(
     Ok(())
 }
 
-fn generate_zsh_script(tool_name: &str) -> String {
-    // The subcommands that accept tool arguments and should get dynamic completions.
-    let dynamic = [
-        "update", "validate", "generate", "build", "deploy", "config", "init", "list-devices",
-    ];
-    let dynamic_cases: String = dynamic.iter().map(|cmd| {
-        format!(
-            "            ({cmd})\n                local -a _pos_tokens tool_completions\n                _pos_tokens=(${{(M)words[2,$(($CURRENT-1))]:#^-*}})\n                tool_completions=(${{(f)\"$(attach-meta _complete {cmd} \"${{words[$CURRENT]}}\" \"${{_pos_tokens[@]}}\" 2>/dev/null)\"}})\n                compadd -a tool_completions\n            ;;\n",
-        )
-    }).collect();
-    // create/delete have fixed subcommands (node/property), each with dynamic tool completions.
-    let create_case = concat!(
-        "            (create)\n",
-        "                if [[ $CURRENT -eq 2 ]]; then\n",
-        "                    local -a create_subs\n",
-        "                    create_subs=(node property workfile)\n",
-        "                    _describe 'create subcommand' create_subs\n",
-        "                else\n",
-        "                    local -a _pos_tokens\n",
-        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
-        "                    case $words[2] in\n",
-        "                        (node)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete create_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                        (property)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete create_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                        (workfile)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete create_workfile \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                    esac\n",
-        "                fi\n",
-        "            ;;\n",
-    );
-    let read_case = concat!(
-        "            (read)\n",
-        "                if [[ $CURRENT -eq 2 ]]; then\n",
-        "                    local -a read_subs\n",
-        "                    read_subs=(node property)\n",
-        "                    _describe 'read subcommand' read_subs\n",
-        "                else\n",
-        "                    local -a _pos_tokens\n",
-        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
-        "                    case $words[2] in\n",
-        "                        (node)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete read_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                        (property)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete read_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                    esac\n",
-        "                fi\n",
-        "            ;;\n",
-    );
-    let delete_case = concat!(
-        "            (delete)\n",
-        "                if [[ $CURRENT -eq 2 ]]; then\n",
-        "                    local -a delete_subs\n",
-        "                    delete_subs=(node property)\n",
-        "                    _describe 'delete subcommand' delete_subs\n",
-        "                else\n",
-        "                    local -a _pos_tokens\n",
-        "                    _pos_tokens=(${(M)words[3,$(($CURRENT-1))]:#^-*})\n",
-        "                    case $words[2] in\n",
-        "                        (node)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_node \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                        (property)\n",
-        "                            local -a tool_completions\n",
-        "                            tool_completions=(${(f)\"$(attach-meta _complete delete_property \"${words[$CURRENT]}\" \"${_pos_tokens[@]}\" 2>/dev/null)\"})\n",
-        "                            compadd -a tool_completions\n",
-        "                        ;;\n",
-        "                    esac\n",
-        "                fi\n",
-        "            ;;\n",
-    );
+/// Single-quote a string for safe shell interpolation.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
 
+fn config_arg(config_path: Option<&std::path::Path>) -> String {
+    config_path
+        .map(|p| format!(" --config {}", shell_quote(&p.to_string_lossy())))
+        .unwrap_or_default()
+}
+
+fn generate_zsh_script(config_path: Option<&std::path::Path>) -> String {
+    let cfg = config_arg(config_path);
     format!(
         r#"#compdef attach-meta
 # Generated by attach-meta --setup-completions zsh
-# Active tool: {tool_name}
 
 _attach-meta() {{
-    local state
-
-    _arguments \
-        '--tool[Tool to use]:tool:' \
-        '--workfile[Workfile path]:file:_files' \
-        '--json[Machine-parseable output]' \
-        '--config[Config file]:file:_files' \
-        '--setup-completions[Install completions]:shell:(bash zsh fish elvish powershell)' \
-        '(-): :->command' \
-        '(-)*:: :->args'
-
-    case $state in
-        command)
-            local -a commands
-            commands=(
-                'create:Add a new node or property'
-                'read:Read values of a node or property'
-                'update:Update primitive values'
-                'delete:Delete a node or property'
-                'validate:Validate workfile, node, or primitive'
-                'generate:Generate an artifact from the workfile'
-                'build:Build from artifact'
-                'deploy:Deploy built artifact to target'
-                'config:Set a config value on the active tool'
-                'init:Initialize a new workfile or project'
-                'list-devices:List available devices'
-                'discover:Print discovery output for the active tool'
-                'schema:Print the protocol command table'
-                'completions:Print shell completion script'
-            )
-            _describe 'command' commands
-        ;;
-        args)
-            case $words[1] in
-{dynamic_cases}{create_case}{read_case}{delete_case}            (completions)
-                local -a shells
-                shells=(bash zsh fish elvish powershell)
-                _describe 'shell' shells
-            ;;
-            esac
-        ;;
-    esac
+    local -a completions vals descs
+    completions=("${{(@f)$(attach-meta{cfg} __complete \
+        --current-word-index $((CURRENT - 1)) \
+        -- "${{words[@]}}" 2>/dev/null)}}")
+    for line in $completions; do
+        vals+=("${{line%%$'\t'*}}")
+        if [[ "$line" == *$'\t'* ]]; then
+            descs+=("${{line#*$'\t'}}")
+        else
+            descs+=('')
+        fi
+    done
+    _describe 'completions' vals descs
 }}
 
-_attach-meta "$@"
+compdef _attach-meta attach-meta
+"#
+    )
+}
+
+fn generate_bash_script(config_path: Option<&std::path::Path>) -> String {
+    let cfg = config_arg(config_path);
+    format!(
+        r#"# Generated by attach-meta --setup-completions bash
+_attach_meta_completions() {{
+    local IFS=$'\n'
+    local completions
+    completions=$(attach-meta{cfg} __complete \
+        --current-word-index "$COMP_CWORD" \
+        -- "${{COMP_WORDS[@]}}" 2>/dev/null) || return
+    [ -z "$completions" ] && return
+    while IFS=$'\t' read -r value _desc; do
+        COMPREPLY+=("$value")
+    done <<< "$completions"
+}}
+complete -F _attach_meta_completions attach-meta
+"#
+    )
+}
+
+fn generate_fish_script(config_path: Option<&std::path::Path>) -> String {
+    let cfg = config_arg(config_path);
+    format!(
+        r#"# Generated by attach-meta --setup-completions fish
+function __attach_meta_completions
+    set -l words (commandline -opc)
+    set -l wcount (count $words)
+    test $wcount -eq 0; and return
+    set -l index (math $wcount - 1)
+    attach-meta{cfg} __complete --current-word-index $index \
+        -- $words 2>/dev/null
+end
+complete -c attach-meta -f -a "(__attach_meta_completions)"
 "#
     )
 }

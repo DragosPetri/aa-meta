@@ -209,12 +209,12 @@ pub enum Command {
     Schema,
     #[command(about = "Print shell completion script for the given shell")]
     Completions { shell: Shell },
-    #[command(name = "_complete", hide = true)]
-    Complete {
-        subcommand: String,
-        partial: Option<String>,
-        #[arg(trailing_var_arg = true)]
-        tokens: Vec<String>,
+    #[command(name = "__complete", hide = true)]
+    DoubleComplete {
+        #[arg(long)]
+        current_word_index: usize,
+        #[arg(last = true)]
+        words: Vec<String>,
     },
 }
 
@@ -233,7 +233,7 @@ impl Command {
             Command::Init { .. } => DiscoveryKey::Init,
             Command::ListDevices { .. } => DiscoveryKey::ListDevices,
             // These variants are handled before dispatch is reached.
-            Command::Discover | Command::Schema | Command::Completions { .. } | Command::Complete { .. } => {
+            Command::Discover | Command::Schema | Command::Completions { .. } | Command::DoubleComplete { .. } => {
                 unreachable!("non-dispatch command reached key()")
             }
         }
@@ -255,7 +255,7 @@ impl Command {
             Command::Discover => &[],
             Command::Schema => &[],
             Command::Completions { .. } => &[],
-            Command::Complete { .. } => &[],
+            Command::DoubleComplete { .. } => &[],
         }
     }
 }

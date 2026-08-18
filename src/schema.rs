@@ -21,7 +21,7 @@ pub enum DiscoveryKey {
     Config,
     Init,
     ListDevices,
-    Complete,
+    DoubleComplete,
 }
 
 impl DiscoveryKey {
@@ -42,7 +42,7 @@ impl DiscoveryKey {
             DiscoveryKey::Config         => CommandSpec { key: "config",          argv: &["config"],             description: "Set a config value" },
             DiscoveryKey::Init          => CommandSpec { key: "init",            argv: &["init"],               description: "Initialize a new workfile or project" },
             DiscoveryKey::ListDevices   => CommandSpec { key: "list_devices",    argv: &["list-devices"],       description: "List available devices" },
-            DiscoveryKey::Complete       => CommandSpec { key: "complete",        argv: &["complete"],           description: "Return completion candidates for a subcommand (optional)" },
+            DiscoveryKey::DoubleComplete  => CommandSpec { key: "__complete",      argv: &["__complete"],         description: "Return completion candidates (shell, word-index, full word list)" },
         }
     }
 
@@ -65,7 +65,7 @@ impl DiscoveryKey {
         DiscoveryKey::Config,
         DiscoveryKey::Init,
         DiscoveryKey::ListDevices,
-        DiscoveryKey::Complete,
+        DiscoveryKey::DoubleComplete,
     ];
 }
 
