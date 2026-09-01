@@ -1,0 +1,276 @@
+TODO: remove create property from meta
+TODO: update will insert/update
+TODO: Linux will have to try to preprocess
+TODO: redesign a proper analog_attachable meta auto-completion system
+
+NOTE: Zephyr has a real workspace which can be identifiend with markers which enables resource auto detection
+NOTE: linux/no-os can have any folder be a worksapce => config points to needed resources
+
+CommonResponse = {
+  ok : true | false,
+  message: string,
+  severity: "info" | "warn" | "error"
+}
+
+Analog Attachable:
+```
+TODO: define!
+```
+
+COMMAND:
+```
+attach-meta init [analog_attachable] => TOOL should have a command that outputs a path to the command-mapping manifest => read manifest, check version match, check required mappings are supported, if all valid => .attach-meta/ config gets written with tool and manifest path => TOOL init takes place => requests (enforced) custom format settings from underlying TOOL => interactive config session
+
+NOTE: the underlying TOOL will have a meta-manifest command to provide command-mapping file path
+
+Interactive Config Workflow:
+  1. requests all configs
+  2. loop trough required configs asking for input (in case of default value, ask if default shall be used) and try to set config with given input
+  3. display rest of configs asking if any shall be configured or left default/unset
+  4. ask for input and configure for any optional config that is requested
+
+NOTE: the underlying TOOL will either confirm a valid config is present or create the config file that will get populated with the required fields for the TOOL to work
+
+NOTE: the underlying TOOL is permitted to do any pre/post init operations
+
+NOTE: any 3rd party tool using attach-meta shall use init only to determine if a valid config is present or if there are still fields required to be populated
+
+TODO: flag for init to not go into interactive config mode but confirm valid config/provide list of setting to be filled in
+```
+
+NOTE: every TOOL needs to provide a mechanism for reading/writing it's config file
+
+COMMAND:
+```
+Enum = {options: any[]};
+
+Config = {
+  field_name: string,
+  category: string,
+  description: string,
+  type: "numeric" | "string" | "path" | Enum
+  required: true | false,
+  default: any | null, // should not be optional field, but must express optionality
+}
+
+TODO: make sure Config design is sound
+TODO: consider if there is a use case for non required default configs to be able to be unset
+
+attach-meta tool-config get => gets all configs for the tool => Config[]
+attach-meta tool-config get [field, ...field] => gets config of field(s) => Config | Config[]
+attach-meta tool-config set [field] [value] => set config field to value => CommonResponse
+
+TODO: consider a variant of set where we can have variadic entries
+```
+
+COMMAND:
+```
+TODO: consider better naming convention
+
+attach-meta create-workfile => .dtso/.overlay/.json => CommonResponse
+
+NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
+```
+
+COMMAND:
+```
+TODO: consider better naming convention
+
+Device = {
+  tag: string,
+  key: string,
+}
+
+attach-meta list-devices =>  Device[]
+
+NOTE: keys need not be unique => the underlying TOOL can decide to have multiple tags for one key by creating different entries => this pushes the responsibility of deciding how to group devices onto the underlying TOOL
+```
+
+COMMAND:
+```
+Number : {
+  kind: "number"
+}
+
+String: {
+  kind: "string"
+}
+
+Enum: {
+  kind: "enum"
+  options: [1, "lol"];
+}
+
+Boolean: {
+  kind: "bool"
+}
+
+Array: {
+  kind: "array"
+  items: TYPES[]
+}
+
+TODO: Array definition id not good enough, needs refinement
+
+TYPES = Number | String | Enum | Boolean | Array;
+
+Property: {
+  key: "spi_max_freq",
+  type: Number
+}
+
+node: {
+  key: "ad7124",
+  properties: Property[]
+  alias: String[]
+}
+
+attach-meta read [...valid_identifier] => Property | Node | Node[]
+
+NOTE: missing valid_identifier means implicit root
+
+attach-meta read => read all => Node[]
+attach-meta read soc spi@7e400000 my_adc => read node => Node
+attach-meta read my_adc => read node => Node
+attach-meta read my_adc spi_max_freq => Property
+attach-meta read soc spi@7e400000 ad7124@0 spi_max_frequency => Property
+
+TODO: reading looks/feels inconsistent like this, consider if it should waterfall the whole subtree or not
+```
+
+COMMAND:
+```
+attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => CommonRepsonse
+
+NOTE: at least one of Device.key or name need to appear
+NOTE: parent is optional as root is implied if missing
+```
+
+COMMAND:
+```
+attach-meta delete [...valid_identifier] => CommonResponse
+
+NOTE: implict root means it's a risky action, consider design which need --force to delete waterfall style
+
+attach-meta delete => delete all
+attach-meta delete soc spi@7e400000 my_adc => delete node
+attach-meta delete my_adc => delete node
+attach-meta delete my_adc spi_max_freq => delete/unset/reset property
+attach-meta delete soc spi@7e400000 ad7124@0 spi_max_frequency => delete property
+
+NOTE: delete means whatever the underlying TOOL considers
+```
+
+COMMAND:
+```
+attach-meta move [valid_identifier, ...valid_identifier] --to [...valid_identifier] => CommonResponse
+
+NOTE: only nodes are movable
+NOTE: no implicit root for positional (can't move root)
+NOTE: implicit root for --to (should --to be optional?)
+NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
+
+Move workflow (happy) when no move is supported:
+  1. read node
+  2. add node to new parent either by Device.key or name
+  3. update all properties in new node with values from old node
+  4. delete old node
+```
+
+COMMAND:
+```
+attach-meta update [valid_identifier, ...valid_identifier] [value] => CommonResponse
+
+NOTE: only properties can be updated
+NOTE: update behaves like "upsert" if no property is found, it will be inserted
+```
+
+COMMAND:
+```
+attach-meta rename [valid_identifier, ...valid_identifier] [value] => CommonResponse
+
+NOTE: shall work for nodes and for properties as there are valid usecases for renaming a property (e.g. aliases in devicetree)
+```
+
+COMMAND:
+```
+Error = {
+  kind: "generic"
+  path: [...valid_identifier],
+  message: string,
+}
+
+ValidationResponse = {
+  valid : true | false,
+  Errors: Error[]
+};
+
+/*
+  Possibility of future extension:
+
+  NumericLimitError = Error & {kind: "numeric_limit", min: number, max: number};
+
+  NOTE: needs to have a discriminator
+
+  MetaErrors = Error | NumericLimitError;
+*/
+
+attach-meta validate => ValidationResponse
+```
+
+COMMAND:
+```
+attach-meta generate => CommonResponse
+
+NOTE: transform workfile into useable artifact
+NOTE: shall be unsuported for tools where workfile === useable artifact
+
+TODO: consider if arguments are needed (like input/output) or it's entirely config based
+```
+
+COMMAND:
+```
+attach-meta build => CommonResponse
+
+NOTE: transform useable artifact into final binary to be used
+
+TODO: consider if arguments are needed (like input/output) or it's entirely config based
+```
+
+COMMAND:
+```
+attach-meta deploy => CommonResponse
+
+NOTE: can be TOOL specific or user defined
+
+TODO: consider if arguments are needed (like input) or it's entirely config based
+```
+
+COMMAND:
+```
+attach-meta completion ["bash" | "zsh" | "fish"]
+
+NOTE: will output completion script for attach-meta to stdout
+NOTE: help will contain useful information for a user what to do with the completion script for each supported shell
+```
+
+Autocompletion hook system:
+
+On <TAB>: attach-meta __complete --current-word-index <N> -- <args>
+
+NOTE: strips global flags before interpreting index
+NOTE: index is 0 based
+NOTE: index 0-1 is command/subcommand dispatch 
+
+Meta side:
+  1. Checks the tools supports __complete
+  2. translates attach-meta protocol keywords to native tool keywords (e.g. delete === unset (zephyr))
+  3. calls <binary> __complete --curent-word-index N -- <native_args>
+
+Tool side:
+  1. support __complete
+  2. accept and parse <binary> __complete --current-word-index N -- <native_args>
+  3. has it's own autocompletion analog_attachable
+  4. outputs one candidate per line to stdout
+  5. exit 0 (non-zero/empty stdout => no candidates)
+
