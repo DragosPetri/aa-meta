@@ -240,6 +240,14 @@ node: {
   alias: String[]
 }
 
+valid_identifier: string
+// a node name within its parent scope, or an alias
+
+NOTE: a sequence of valid_identifiers forms a path resolved left-to-right from root
+NOTE: a path may terminate at any node or at a property of any node
+NOTE: aliases are only valid as identifiers if the underlying format enforces their uniqueness
+NOTE: it is the sub-tool's responsibility to accept this way of addressing nodes/properties irrespective of underlying format
+
 ───────────────────────────────────────────────────────────────────
 Commands — Initialization
 ───────────────────────────────────────────────────────────────────
@@ -544,3 +552,4 @@ Open Items
 ───────────────────────────────────────────────────────────────────
 
 TODO: remove create property from meta
+TODO: consider aliasing system
