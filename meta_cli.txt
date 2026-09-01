@@ -266,6 +266,150 @@ NOTE: will output completion script for attach-meta to stdout
 NOTE: help will contain useful information for a user what to do with the completion script for each supported shell
 ```
 
+Manifest:
+
+NOTE: manifest is a file whose path is emitted by the subtool during init
+NOTE: argv includes the binary — different commands can route to different subtools
+NOTE: list-intelligence presence in commands declares intelligence support
+NOTE: absence of a command entry means unsupported
+NOTE: tool extensions are purely additive — tool authors may only declare optional fields;
+      required fields are owned by the protocol (enforced by meta-schema, see below)
+NOTE: on every invocation, attach-meta reads the manifest from disk and merges the tool's
+      args with the protocol base schema using allOf before validating input
+
+// Option A — JSON Schema (recommended)
+// attach-meta ships a JSON Schema validator and validates every incoming manifest
+// against this meta-schema at init time.
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/manifest",
+  "type": "object",
+  "required": ["protocol_version", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "commands": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "read", "add", "delete", "move", "update", "rename",
+          "validate", "generate", "build", "deploy",
+          "list-devices", "create-workfile",
+          "tool-config get", "tool-config set",
+          "list-intelligence", "suggest"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/CommandMapping" },
+      "TODO": "enforce required command entries once the set is defined"
+    }
+  },
+  "$defs": {
+    "CommandMapping": {
+      "type": "object",
+      "required": ["argv"],
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "args": {
+          "allOf": [
+            { "$ref": "https://json-schema.org/draft/2020-12/schema" },
+            {
+              "properties": {
+                "required": false
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+// The protocol owns a base schema per command (hardcoded in attach-meta).
+// At dispatch time, attach-meta merges base + tool args:
+//   effective_schema = { "allOf": [base, manifest["commands"][cmd]["args"]] }
+// Input is validated against the effective schema before forwarding to the subtool.
+// Tool args may only add optional properties — "required" is forbidden at the top
+// level of args (enforced above), so the protocol always controls what is required.
+
+// Example — tool manifest entry for add:
+```json
+"add": {
+  "argv": ["attach-pickle", "add"],
+  "args": {
+    "properties": {
+      "bus_id": { "type": "string" }
+    }
+  }
+}
+```
+
+// Example — protocol base schema for add (lives in attach-meta, not in the manifest):
+```json
+{
+  "properties": {
+    "key":    { "type": "string" },
+    "name":   { "type": "string" },
+    "parent": { "type": "string" }
+  },
+  "anyOf": [
+    { "required": ["key"] },
+    { "required": ["name"] }
+  ]
+}
+```
+
+// Option B — Simple (no JSON Schema dependency)
+```
+CommandName = "read" | "add" | "delete" | "move" | "update" | "rename"
+            | "validate" | "generate" | "build" | "deploy"
+            | "list-devices" | "create-workfile"
+            | "tool-config get" | "tool-config set"
+            | "list-intelligence" | "suggest"
+
+Positional = {
+  kind: "positional",
+  name: string,
+  required: true | false,
+  variadic: true | false,
+}
+
+Flag = {
+  kind: "flag",
+  name: string,
+  required: true | false,
+  variadic: true | false,
+}
+
+AtLeastOne = {
+  kind: "at_least_one",
+  args: string[],
+}
+
+Constraint = AtLeastOne   // TODO: more constraint kinds likely needed
+
+CommandMapping = {
+  argv: string[],
+  args: (Positional | Flag)[],
+  constraints?: Constraint[],
+}
+
+Manifest = {
+  protocol_version: string,
+  commands: { [CommandName]: CommandMapping },
+  TODO: enforce required command entries once the set is defined
+}
+```
+
 Autocompletion hook system:
 
 On <TAB>: attach-meta __complete --current-word-index <N> -- <args>
