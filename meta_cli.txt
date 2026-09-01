@@ -11,8 +11,11 @@ A fully conformant Analog Attachable implements the feedback loop:
     - tool-config get, tool-config set
     - create-workfile
     - list-devices
-    - add, read, update, delete, move, rename
+    - add, read, update, delete
     - validate
+
+  Optional commands (convenience):
+    - move, rename
 
   Optional commands (build pipeline):
     - generate, build, deploy
@@ -72,7 +75,7 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
       "required": [
         "tool-config get", "tool-config set",
         "create-workfile", "list-devices",
-        "add", "read", "update", "delete", "move", "rename",
+        "add", "read", "update", "delete",
         "validate"
       ]
     }
@@ -177,7 +180,8 @@ Manifest = {
   protocol_version: string,
   commands: { [CommandName]: CommandMapping },
   // required entries: tool-config get, tool-config set, create-workfile,
-  // list-devices, add, read, update, delete, move, rename, validate
+  // list-devices, add, read, update, delete, validate
+  // optional entries: move, rename
 }
 ```
 
@@ -409,6 +413,19 @@ COMMAND:
 attach-meta rename [valid_identifier, ...valid_identifier] [value] => CommonResponse
 
 NOTE: shall work for nodes and for properties as there are valid use-cases for renaming a property (e.g. aliases in devicetree)
+
+Rename workflow (fallback) when not natively supported by the underlying tool:
+
+  For a node:
+    1. read node
+    2. add node with new name under same parent
+    3. update all properties in new node with values from old node
+    4. delete old node
+
+  For a property:
+    1. read property value
+    2. update (upsert) new property key with that value
+    3. delete old property key
 ```
 
 ───────────────────────────────────────────────────────────────────
