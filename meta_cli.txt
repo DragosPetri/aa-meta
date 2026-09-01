@@ -88,31 +88,43 @@ NOTE: keys need not be unique => the underlying TOOL can decide to have multiple
 
 COMMAND:
 ```
-Number : {
-  kind: "number"
+Number: {
+  kind: "number",
+  subtype: "int" | "float",
 }
 
 String: {
   kind: "string"
 }
 
-Enum: {
-  kind: "enum"
-  options: [1, "lol"];
-}
-
-Boolean: {
+Bool: {
   kind: "bool"
 }
 
+Enum: {
+  kind: "enum",
+  options: { value: string | number, display_string?: string }[]
+}
+
+// Variable-length, all items same type
 Array: {
-  kind: "array"
+  kind: "array",
+  items: TYPES
+}
+
+// Fixed-length, each position independently typed
+Tuple: {
+  kind: "tuple",
   items: TYPES[]
 }
 
-TODO: Array definition id not good enough, needs refinement
+// TODO: needs to be discussed if this is overkill or enum is enough
+Union: {
+  kind: "union",
+  variants: { name: string, type: TYPES }[]
+}
 
-TYPES = Number | String | Enum | Boolean | Array;
+TYPES = Number | String | Bool | Enum | Array | Tuple | Union;
 
 Property: {
   key: "spi_max_freq",
