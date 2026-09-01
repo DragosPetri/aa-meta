@@ -14,28 +14,57 @@ CommonResponse = {
 
 Analog Attachable:
 ```
-TODO: define!
+An Analog Attachable is any invocable binary that conforms to the attach-meta protocol.
+
+Registration requires a single fixed command:
+  <binary> attach-manifest  =>  writes manifest to disk, prints path to stdout
+
+A fully conformant Analog Attachable implements the feedback loop:
+
+  Required commands:
+    - tool-config get, tool-config set
+    - create-workfile
+    - list-devices
+    - add, read, update, delete, move, rename
+    - validate
+
+  Optional commands (build pipeline):
+    - generate, build, deploy
+
+  Optional commands (intelligence):
+    - list-intelligence, suggest
+
+NOTE: a binary that supports only attach-manifest is registerable but not fully conformant
+NOTE: the build pipeline is optional because for some tools workfile === artifact
+NOTE: intelligence support is declared via list-intelligence presence in the manifest
 ```
 
 COMMAND:
 ```
-attach-meta init [analog_attachable] => TOOL should have a command that outputs a path to the command-mapping manifest => read manifest, check version match, check required mappings are supported, if all valid => .attach-meta/ config gets written with tool and manifest path => TOOL init takes place => requests (enforced) custom format settings from underlying TOOL => interactive config session
+attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | InitResponse
 
-NOTE: the underlying TOOL will have a meta-manifest command to provide command-mapping file path
+  1. calls <analog_attachable> attach-manifest
+  2. subtool writes manifest to disk, outputs path to stdout
+  3. attach-meta reads manifest from that path
+  4. validates manifest against the protocol meta-schema
+  5. checks protocol_version matches attach-meta's version
+  6. checks all required commands are present
+  7. if all valid => writes binary + manifest path to .attach-meta.toml
+  8. (default) runs interactive config session:
+       a. requests all configs via tool-config get
+       b. loops through required fields asking for input
+          (if default exists, asks if default shall be used)
+       c. displays optional fields, asks if any shall be configured
+       d. calls tool-config set for each provided value
 
-Interactive Config Workflow:
-  1. requests all configs
-  2. loop trough required configs asking for input (in case of default value, ask if default shall be used) and try to set config with given input
-  3. display rest of configs asking if any shall be configured or left default/unset
-  4. ask for input and configure for any optional config that is requested
+InitResponse = CommonResponse & {
+  config_complete: true | false,
+  missing_fields: string[],
+}
 
-NOTE: the underlying TOOL will either confirm a valid config is present or create the config file that will get populated with the required fields for the TOOL to work
-
+NOTE: --no-interactive skips step 8 and returns InitResponse instead of CommonResponse
+NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config get/set
 NOTE: the underlying TOOL is permitted to do any pre/post init operations
-
-NOTE: any 3rd party tool using attach-meta shall use init only to determine if a valid config is present or if there are still fields required to be populated
-
-TODO: flag for init to not go into interactive config mode but confirm valid config/provide list of setting to be filled in
 ```
 
 NOTE: every TOOL needs to provide a mechanism for reading/writing it's config file
@@ -304,7 +333,12 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
         ]
       },
       "additionalProperties": { "$ref": "#/$defs/CommandMapping" },
-      "TODO": "enforce required command entries once the set is defined"
+      "required": [
+        "tool-config get", "tool-config set",
+        "create-workfile", "list-devices",
+        "add", "read", "update", "delete", "move", "rename",
+        "validate"
+      ]
     }
   },
   "$defs": {
@@ -406,7 +440,8 @@ CommandMapping = {
 Manifest = {
   protocol_version: string,
   commands: { [CommandName]: CommandMapping },
-  TODO: enforce required command entries once the set is defined
+  // required entries: tool-config get, tool-config set, create-workfile,
+  // list-devices, add, read, update, delete, move, rename, validate
 }
 ```
 
