@@ -286,3 +286,39 @@ Tool side:
   4. outputs one candidate per line to stdout
   5. exit 0 (non-zero/empty stdout => no candidates)
 
+COMMAND:
+```
+Intelligence = {
+  kind: string,
+  args: IntelligenceArg[],
+}
+
+IntelligenceArg = {
+  name: string,
+  description: string,
+  required: true | false,
+}
+
+attach-meta list-intelligence => Intelligence[]
+
+NOTE: advertises which suggestion kinds the active tool supports
+NOTE: kind is protocol-defined
+```
+
+COMMAND:
+```
+Suggestion = {
+  value: string,
+  display_string?: string,
+}
+
+attach-meta suggest <kind> [...args] => Suggestion[]
+
+NOTE: only valid for kinds advertised by list-intelligence
+NOTE: args are kind-specific, described by Intelligence.args
+NOTE: autocompletion for suggest, as for all other commands, is the responsibility of the subtool
+
+// known kinds:
+attach-meta suggest parent <node_key> => Suggestion[]
+```
+
