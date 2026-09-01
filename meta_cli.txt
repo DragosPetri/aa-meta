@@ -1,17 +1,3 @@
-TODO: remove create property from meta
-TODO: update will insert/update
-TODO: Linux will have to try to preprocess
-TODO: redesign a proper analog_attachable meta auto-completion system
-
-NOTE: Zephyr has a real workspace which can be identifiend with markers which enables resource auto detection
-NOTE: linux/no-os can have any folder be a worksapce => config points to needed resources
-
-CommonResponse = {
-  ok : true | false,
-  message: string,
-  severity: "info" | "warn" | "error"
-}
-
 Analog Attachable:
 ```
 An Analog Attachable is any invocable binary that conforms to the attach-meta protocol.
@@ -39,266 +25,16 @@ NOTE: the build pipeline is optional because for some tools workfile === artifac
 NOTE: intelligence support is declared via list-intelligence presence in the manifest
 ```
 
-COMMAND:
-```
-attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | InitResponse
+NOTE: Zephyr has a real workspace which can be identified with markers which enables resource auto detection
+NOTE: linux/no-os can have any folder be a workspace => config points to needed resources
+TODO: Linux will have to try to preprocess
 
-  1. calls <analog_attachable> attach-manifest
-  2. subtool writes manifest to disk, outputs path to stdout
-  3. attach-meta reads manifest from that path
-  4. validates manifest against the protocol meta-schema
-  5. checks protocol_version matches attach-meta's version
-  6. checks all required commands are present
-  7. if all valid => writes binary + manifest path to .attach-meta.toml
-  8. (default) runs interactive config session:
-       a. requests all configs via tool-config get
-       b. loops through required fields asking for input
-          (if default exists, asks if default shall be used)
-       c. displays optional fields, asks if any shall be configured
-       d. calls tool-config set for each provided value
+───────────────────────────────────────────────────────────────────
+Manifest
+───────────────────────────────────────────────────────────────────
 
-InitResponse = CommonResponse & {
-  config_complete: true | false,
-  missing_fields: string[],
-}
-
-NOTE: --no-interactive skips step 8 and returns InitResponse instead of CommonResponse
-NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config get/set
-NOTE: the underlying TOOL is permitted to do any pre/post init operations
-```
-
-NOTE: every TOOL needs to provide a mechanism for reading/writing it's config file
-
-COMMAND:
-```
-Enum = {options: any[]};
-
-Config = {
-  field_name: string,
-  category: string,
-  description: string,
-  type: "numeric" | "string" | "path" | Enum
-  required: true | false,
-  default: any | null, // should not be optional field, but must express optionality
-}
-
-TODO: make sure Config design is sound
-TODO: consider if there is a use case for non required default configs to be able to be unset
-
-attach-meta tool-config get => gets all configs for the tool => Config[]
-attach-meta tool-config get [field, ...field] => gets config of field(s) => Config | Config[]
-attach-meta tool-config set [field] [value] => set config field to value => CommonResponse
-
-TODO: consider a variant of set where we can have variadic entries
-```
-
-COMMAND:
-```
-TODO: consider better naming convention
-
-attach-meta create-workfile => .dtso/.overlay/.json => CommonResponse
-
-NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
-```
-
-COMMAND:
-```
-TODO: consider better naming convention
-
-Device = {
-  tag: string,
-  key: string,
-}
-
-attach-meta list-devices =>  Device[]
-
-NOTE: keys need not be unique => the underlying TOOL can decide to have multiple tags for one key by creating different entries => this pushes the responsibility of deciding how to group devices onto the underlying TOOL
-```
-
-COMMAND:
-```
-Number: {
-  kind: "number",
-  subtype: "int" | "float",
-}
-
-String: {
-  kind: "string"
-}
-
-Bool: {
-  kind: "bool"
-}
-
-Enum: {
-  kind: "enum",
-  options: { value: string | number, display_string?: string }[]
-}
-
-// Variable-length, all items same type
-Array: {
-  kind: "array",
-  items: TYPES
-}
-
-// Fixed-length, each position independently typed
-Tuple: {
-  kind: "tuple",
-  items: TYPES[]
-}
-
-// TODO: needs to be discussed if this is overkill or enum is enough
-Union: {
-  kind: "union",
-  variants: { name: string, type: TYPES }[]
-}
-
-TYPES = Number | String | Bool | Enum | Array | Tuple | Union;
-
-Property: {
-  key: "spi_max_freq",
-  type: Number
-}
-
-node: {
-  key: "ad7124",
-  properties: Property[]
-  alias: String[]
-}
-
-attach-meta read [...valid_identifier] => Property | Node | Node[]
-
-NOTE: missing valid_identifier means implicit root
-
-attach-meta read => read all => Node[]
-attach-meta read soc spi@7e400000 my_adc => read node => Node
-attach-meta read my_adc => read node => Node
-attach-meta read my_adc spi_max_freq => Property
-attach-meta read soc spi@7e400000 ad7124@0 spi_max_frequency => Property
-
-TODO: reading looks/feels inconsistent like this, consider if it should waterfall the whole subtree or not
-```
-
-COMMAND:
-```
-attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => CommonRepsonse
-
-NOTE: at least one of Device.key or name need to appear
-NOTE: parent is optional as root is implied if missing
-```
-
-COMMAND:
-```
-attach-meta delete [...valid_identifier] => CommonResponse
-
-NOTE: implict root means it's a risky action, consider design which need --force to delete waterfall style
-
-attach-meta delete => delete all
-attach-meta delete soc spi@7e400000 my_adc => delete node
-attach-meta delete my_adc => delete node
-attach-meta delete my_adc spi_max_freq => delete/unset/reset property
-attach-meta delete soc spi@7e400000 ad7124@0 spi_max_frequency => delete property
-
-NOTE: delete means whatever the underlying TOOL considers
-```
-
-COMMAND:
-```
-attach-meta move [valid_identifier, ...valid_identifier] --to [...valid_identifier] => CommonResponse
-
-NOTE: only nodes are movable
-NOTE: no implicit root for positional (can't move root)
-NOTE: implicit root for --to (should --to be optional?)
-NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
-
-Move workflow (happy) when no move is supported:
-  1. read node
-  2. add node to new parent either by Device.key or name
-  3. update all properties in new node with values from old node
-  4. delete old node
-```
-
-COMMAND:
-```
-attach-meta update [valid_identifier, ...valid_identifier] [value] => CommonResponse
-
-NOTE: only properties can be updated
-NOTE: update behaves like "upsert" if no property is found, it will be inserted
-```
-
-COMMAND:
-```
-attach-meta rename [valid_identifier, ...valid_identifier] [value] => CommonResponse
-
-NOTE: shall work for nodes and for properties as there are valid usecases for renaming a property (e.g. aliases in devicetree)
-```
-
-COMMAND:
-```
-Error = {
-  kind: "generic"
-  path: [...valid_identifier],
-  message: string,
-}
-
-ValidationResponse = {
-  valid : true | false,
-  Errors: Error[]
-};
-
-/*
-  Possibility of future extension:
-
-  NumericLimitError = Error & {kind: "numeric_limit", min: number, max: number};
-
-  NOTE: needs to have a discriminator
-
-  MetaErrors = Error | NumericLimitError;
-*/
-
-attach-meta validate => ValidationResponse
-```
-
-COMMAND:
-```
-attach-meta generate => CommonResponse
-
-NOTE: transform workfile into useable artifact
-NOTE: shall be unsuported for tools where workfile === useable artifact
-
-TODO: consider if arguments are needed (like input/output) or it's entirely config based
-```
-
-COMMAND:
-```
-attach-meta build => CommonResponse
-
-NOTE: transform useable artifact into final binary to be used
-
-TODO: consider if arguments are needed (like input/output) or it's entirely config based
-```
-
-COMMAND:
-```
-attach-meta deploy => CommonResponse
-
-NOTE: can be TOOL specific or user defined
-
-TODO: consider if arguments are needed (like input) or it's entirely config based
-```
-
-COMMAND:
-```
-attach-meta completion ["bash" | "zsh" | "fish"]
-
-NOTE: will output completion script for attach-meta to stdout
-NOTE: help will contain useful information for a user what to do with the completion script for each supported shell
-```
-
-Manifest:
-
-NOTE: manifest is a file whose path is emitted by the subtool during init
-NOTE: argv includes the binary — different commands can route to different subtools
+NOTE: manifest is a file whose path is emitted by the sub-tool during init
+NOTE: argv includes the binary — different commands can route to different sub-tools
 NOTE: list-intelligence presence in commands declares intelligence support
 NOTE: absence of a command entry means unsupported
 NOTE: tool extensions are purely additive — tool authors may only declare optional fields;
@@ -445,25 +181,293 @@ Manifest = {
 }
 ```
 
-Autocompletion hook system:
+───────────────────────────────────────────────────────────────────
+Shared Types
+───────────────────────────────────────────────────────────────────
 
-On <TAB>: attach-meta __complete --current-word-index <N> -- <args>
+CommonResponse = {
+  ok : true | false,
+  message: string,
+  severity: "info" | "warn" | "error"
+}
 
-NOTE: strips global flags before interpreting index
-NOTE: index is 0 based
-NOTE: index 0-1 is command/subcommand dispatch 
+Number: {
+  kind: "number",
+  subtype: "int" | "float",
+}
 
-Meta side:
-  1. Checks the tools supports __complete
-  2. translates attach-meta protocol keywords to native tool keywords (e.g. delete === unset (zephyr))
-  3. calls <binary> __complete --curent-word-index N -- <native_args>
+String: {
+  kind: "string"
+}
 
-Tool side:
-  1. support __complete
-  2. accept and parse <binary> __complete --current-word-index N -- <native_args>
-  3. has it's own autocompletion analog_attachable
-  4. outputs one candidate per line to stdout
-  5. exit 0 (non-zero/empty stdout => no candidates)
+Bool: {
+  kind: "bool"
+}
+
+Enum: {
+  kind: "enum",
+  options: { value: string | number, display_string?: string }[]
+}
+
+// Variable-length, all items same type
+Array: {
+  kind: "array",
+  items: TYPES
+}
+
+// Fixed-length, each position independently typed
+Tuple: {
+  kind: "tuple",
+  items: TYPES[]
+}
+
+// TODO: needs to be discussed if this is overkill or enum is enough
+Union: {
+  kind: "union",
+  variants: { name: string, type: TYPES }[]
+}
+
+TYPES = Number | String | Bool | Enum | Array | Tuple | Union;
+
+Property: {
+  key: string,
+  type: Number
+}
+
+node: {
+  key: string,
+  properties: Property[]
+  alias: String[]
+}
+
+───────────────────────────────────────────────────────────────────
+Commands — Initialization
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | InitResponse
+
+  1. calls <analog_attachable> attach-manifest
+  2. sub-tool writes manifest to disk, outputs path to stdout
+  3. attach-meta reads manifest from that path
+  4. validates manifest against the protocol meta-schema
+  5. checks protocol_version matches attach-meta's version
+  6. checks all required commands are present
+  7. if all valid => writes binary + manifest path to .attach-meta.toml
+  8. (default) runs interactive config session:
+       a. requests all configs via tool-config get
+       b. loops through required fields asking for input
+          (if default exists, asks if default shall be used)
+       c. displays optional fields, asks if any shall be configured
+       d. calls tool-config set for each provided value
+
+InitResponse = CommonResponse & {
+  config_complete: true | false,
+  missing_fields: string[],
+}
+
+NOTE: --no-interactive skips step 8 and returns InitResponse instead of CommonResponse
+NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config get/set
+NOTE: the underlying TOOL is permitted to do any pre/post init operations
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Configuration
+───────────────────────────────────────────────────────────────────
+
+NOTE: every TOOL needs to provide a mechanism for reading/writing its config file
+
+COMMAND:
+```
+Enum = {options: any[]};
+
+Config = {
+  field_name: string,
+  category: string,
+  description: string,
+  type: "numeric" | "string" | "path" | Enum
+  required: true | false,
+  default: any | null, // should not be optional field, but must express optionality
+}
+
+TODO: make sure Config design is sound
+TODO: consider if there is a use case for non required default configs to be able to be unset
+
+attach-meta tool-config get => gets all configs for the tool => Config[]
+attach-meta tool-config get [field, ...field] => gets config of field(s) => Config | Config[]
+attach-meta tool-config set [field] [value] => set config field to value => CommonResponse
+
+TODO: consider a variant of set where we can have variadic entries
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Workspace
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+TODO: consider better naming convention
+
+attach-meta create-workfile => .dtso/.overlay/.json => CommonResponse
+
+NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
+```
+
+COMMAND:
+```
+TODO: consider better naming convention
+
+Device = {
+  tag: string,
+  key: string,
+}
+
+attach-meta list-devices => Device[]
+
+NOTE: keys need not be unique => the underlying TOOL can decide to have multiple tags for one key by creating different entries => this pushes the responsibility of deciding how to group devices onto the underlying TOOL
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — CRUD
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => CommonResponse
+
+NOTE: at least one of Device.key or name need to appear
+NOTE: parent is optional as root is implied if missing
+```
+
+COMMAND:
+```
+attach-meta read [...valid_identifier] => Property | Node | Node[]
+
+NOTE: missing valid_identifier means implicit root
+
+attach-meta read => read all => Node[]
+attach-meta read soc spi@7e400000 my_adc => read node => Node
+attach-meta read my_adc => read node => Node
+attach-meta read my_adc spi_max_freq => Property
+attach-meta read soc spi@7e400000 ad7124@0 spi_max_frequency => Property
+
+TODO: reading looks/feels inconsistent like this, consider if it should waterfall the whole subtree or not
+```
+
+COMMAND:
+```
+attach-meta update [valid_identifier, ...valid_identifier] [value] => CommonResponse
+
+NOTE: only properties can be updated
+NOTE: update behaves like "upsert" if no property is found, it will be inserted
+
+TODO: update will insert/update
+```
+
+COMMAND:
+```
+attach-meta delete [...valid_identifier] => CommonResponse
+
+NOTE: implicit root means it's a risky action, consider design which need --force to delete waterfall style
+
+attach-meta delete => delete all
+attach-meta delete soc spi@7e400000 my_adc => delete node
+attach-meta delete my_adc => delete node
+attach-meta delete my_adc spi_max_freq => delete/unset/reset property
+attach-meta delete soc spi@7e400000 ad7124@0 spi_max_frequency => delete property
+
+NOTE: delete means whatever the underlying TOOL considers
+```
+
+COMMAND:
+```
+attach-meta move [valid_identifier, ...valid_identifier] --to [...valid_identifier] => CommonResponse
+
+NOTE: only nodes are movable
+NOTE: no implicit root for positional (can't move root)
+NOTE: implicit root for --to (should --to be optional?)
+NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
+
+Move workflow (happy) when no move is supported:
+  1. read node
+  2. add node to new parent either by Device.key or name
+  3. update all properties in new node with values from old node
+  4. delete old node
+```
+
+COMMAND:
+```
+attach-meta rename [valid_identifier, ...valid_identifier] [value] => CommonResponse
+
+NOTE: shall work for nodes and for properties as there are valid use-cases for renaming a property (e.g. aliases in devicetree)
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Validation
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+Error = {
+  kind: "generic"
+  path: [...valid_identifier],
+  message: string,
+}
+
+ValidationResponse = {
+  valid : true | false,
+  Errors: Error[]
+};
+
+/*
+  Possibility of future extension:
+
+  NumericLimitError = Error & {kind: "numeric_limit", min: number, max: number};
+
+  NOTE: needs to have a discriminator
+
+  MetaErrors = Error | NumericLimitError;
+*/
+
+attach-meta validate => ValidationResponse
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Build Pipeline
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+attach-meta generate => CommonResponse
+
+NOTE: transform workfile into useable artifact
+NOTE: shall be unsupported for tools where workfile === useable artifact
+
+TODO: consider if arguments are needed (like input/output) or it's entirely config based
+```
+
+COMMAND:
+```
+attach-meta build => CommonResponse
+
+NOTE: transform useable artifact into final binary to be used
+
+TODO: consider if arguments are needed (like input/output) or it's entirely config based
+```
+
+COMMAND:
+```
+attach-meta deploy => CommonResponse
+
+NOTE: can be TOOL specific or user defined
+
+TODO: consider if arguments are needed (like input) or it's entirely config based
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Intelligence
+───────────────────────────────────────────────────────────────────
 
 COMMAND:
 ```
@@ -501,3 +505,42 @@ NOTE: autocompletion for suggest, as for all other commands, is the responsibili
 attach-meta suggest parent <node_key> => Suggestion[]
 ```
 
+───────────────────────────────────────────────────────────────────
+Commands — Completions
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+attach-meta completion ["bash" | "zsh" | "fish"]
+
+NOTE: will output completion script for attach-meta to stdout
+NOTE: help will contain useful information for a user what to do with the completion script for each supported shell
+```
+
+Autocompletion hook system:
+
+On <TAB>: attach-meta __complete --current-word-index <N> -- <args>
+
+NOTE: strips global flags before interpreting index
+NOTE: index is 0 based
+NOTE: index 0-1 is command/subcommand dispatch
+
+Meta side:
+  1. Checks the tool supports __complete
+  2. translates attach-meta protocol keywords to native tool keywords (e.g. delete === unset (zephyr))
+  3. calls <binary> __complete --current-word-index N -- <native_args>
+
+Tool side:
+  1. support __complete
+  2. accept and parse <binary> __complete --current-word-index N -- <native_args>
+  3. has its own autocompletion analog_attachable
+  4. outputs one candidate per line to stdout
+  5. exit 0 (non-zero/empty stdout => no candidates)
+
+TODO: redesign a proper analog_attachable meta auto-completion system
+
+───────────────────────────────────────────────────────────────────
+Open Items
+───────────────────────────────────────────────────────────────────
+
+TODO: remove create property from meta
