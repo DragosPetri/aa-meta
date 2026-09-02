@@ -460,27 +460,35 @@ Commands — Validation
 COMMAND:
 ```
 Error = {
-  kind: "generic"
-  path: [...valid_identifier],
+  kind:    "generic",            // discriminator; extended by future kinds
+  path:    valid_identifier[],   // empty array means file-level error
   message: string,
 }
 
+NOTE: it is the sub-tool's responsibility to translate its internal path
+      representation to the valid_identifier[] format
+
 ValidationResponse = {
-  valid : true | false,
-  Errors: Error[]
+  errors:   Error[],
+  warnings: Error[],
 };
+
+NOTE: empty errors means valid; warnings may be present regardless
 
 /*
   Possibility of future extension:
 
   NumericLimitError = Error & {kind: "numeric_limit", min: number, max: number};
 
-  NOTE: needs to have a discriminator
-
   MetaErrors = Error | NumericLimitError;
 */
 
-attach-meta validate => ValidationResponse
+attach-meta validate [...valid_identifier] => ValidationResponse
+
+NOTE: the sub-tool always validates the full workfile
+NOTE: if a path is provided, attach-meta filters both errors and warnings
+      to those whose path starts with the given valid_identifier sequence —
+      filtering is attach-meta's responsibility, not the sub-tool's
 ```
 
 ───────────────────────────────────────────────────────────────────
