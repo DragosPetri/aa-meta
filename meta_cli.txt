@@ -347,9 +347,10 @@ COMMAND:
 ```
 TODO: consider better naming convention
 
-attach-meta create-workfile => .dtso/.overlay/.json => CommonResponse
+attach-meta create-workfile => CommonResponse
 
 NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
+NOTE: the workfile format is entirely the sub-tool's responsibility — there is no format negotiation
 ```
 
 COMMAND:
@@ -543,7 +544,7 @@ IntelligenceArg = {
 attach-meta list-intelligence => Intelligence[]
 
 NOTE: advertises which suggestion kinds the active tool supports
-NOTE: kind is protocol-defined
+NOTE: kind is a free-form string; tools may define any kinds they support
 ```
 
 COMMAND:
@@ -559,7 +560,7 @@ NOTE: only valid for kinds advertised by list-intelligence
 NOTE: args are kind-specific, described by Intelligence.args
 NOTE: autocompletion for suggest, as for all other commands, is the responsibility of the subtool
 
-// known kinds:
+// example:
 attach-meta suggest parent <node_key> => Suggestion[]
 ```
 
