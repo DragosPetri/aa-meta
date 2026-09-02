@@ -186,14 +186,39 @@ Manifest = {
 ```
 
 ───────────────────────────────────────────────────────────────────
+Transport Contract
+───────────────────────────────────────────────────────────────────
+
+Every command invocation is a subprocess call. The contract between
+attach-meta and a sub-tool:
+
+  Exit 0    stdout contains valid JSON matching the command's response type
+            stderr may contain informational text (ignored by attach-meta)
+
+  Non-zero  the operation could not complete; stdout is undefined
+            stderr should contain a human-readable reason
+
+NOTE: attach-meta treats non-zero exit, empty stdout, and malformed JSON
+      as transport errors and surfaces them in its own error envelope —
+      sub-tools are not responsible for these cases
+NOTE: ok: false in a CommonResponse always corresponds to exit 0 — the
+      tool ran and produced a valid response, but the operation failed;
+      transport failures and protocol failures are distinct
+
+───────────────────────────────────────────────────────────────────
 Shared Types
 ───────────────────────────────────────────────────────────────────
 
 CommonResponse = {
-  ok : true | false,
-  message: string,
-  severity: "info" | "warn" | "error"
+  ok:       true | false,
+  message:  string,
+  severity: "info" | "warn" | "error",
 }
+
+NOTE: ok is the only semantic gate — false means the operation failed
+NOTE: severity is a display hint for message, not a second error signal
+NOTE: ok: true  + severity: "warn"  => success with caveats
+NOTE: ok: false + severity: "error" => canonical failure shape
 
 Number: {
   kind: "number",
