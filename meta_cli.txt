@@ -265,7 +265,8 @@ Property: {
 
 node: {
   key: string,
-  properties: Property[]
+  properties: Property[],
+  children: node[],
   alias: String[]
 }
 
@@ -379,17 +380,16 @@ NOTE: parent is optional as root is implied if missing
 
 COMMAND:
 ```
-attach-meta read [...valid_identifier] => Property | Node | Node[]
+attach-meta read [...valid_identifier] => Node | Property
 
-NOTE: missing valid_identifier means implicit root
+NOTE: missing valid_identifier means implicit root (returns the full tree)
+NOTE: reading a node always returns its full subtree
 
-attach-meta read => read all => Node[]
-attach-meta read soc spi@7e400000 my_adc => read node => Node
-attach-meta read my_adc => read node => Node
-attach-meta read my_adc spi_max_freq => Property
-attach-meta read soc spi@7e400000 ad7124@0 spi_max_frequency => Property
-
-TODO: reading looks/feels inconsistent like this, consider if it should waterfall the whole subtree or not
+attach-meta read                                         => Node (root, full tree)
+attach-meta read soc spi@7e400000 my_adc                => Node (subtree rooted at my_adc)
+attach-meta read my_adc                                  => Node (subtree rooted at my_adc)
+attach-meta read my_adc spi_max_freq                     => Property
+attach-meta read soc spi@7e400000 ad7124@0 spi_max_freq  => Property
 ```
 
 COMMAND:
