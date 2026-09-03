@@ -92,14 +92,7 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
           "minItems": 1
         },
         "args": {
-          "allOf": [
-            { "$ref": "https://json-schema.org/draft/2020-12/schema" },
-            {
-              "properties": {
-                "required": false
-              }
-            }
-          ]
+          "$ref": "https://json-schema.org/draft/2020-12/schema"
         }
       }
     }
@@ -111,8 +104,9 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
 // At dispatch time, attach-meta merges base + tool args:
 //   effective_schema = { "allOf": [base, manifest["commands"][cmd]["args"]] }
 // Input is validated against the effective schema before forwarding to the subtool.
-// Tool args may only add optional properties — "required" is forbidden at the top
-// level of args (enforced above), so the protocol always controls what is required.
+// Tool args may only add optional properties — a top-level "required" keyword is
+// forbidden and attach-meta will reject a manifest that declares one, so the
+// protocol always controls what is required.
 
 // Example — tool manifest entry for add:
 ```json
@@ -256,21 +250,21 @@ TYPES = Number | String | Bool | Enum | Array | Tuple;
 
 Property: {
   key: string,
-  type: Number
+  type: TYPES
 }
 
-node: {
+Node: {
   key: string,
   properties: Property[],
-  children: node[],
-  alias: String[]
+  children: Node[],
+  alias: string[]
 }
 
-valid_identifier: string
+ValidIdentifier: string
 // a node name within its parent scope, or an alias
 
-NOTE: a sequence of valid_identifiers forms a path resolved left-to-right from root
-NOTE: a path may terminate at any node or at a property of any node
+NOTE: a sequence of ValidIdentifiers forms a path resolved left-to-right from root
+NOTE: a path may terminate at any Node or at a property of any Node
 NOTE: aliases are only valid as identifiers if the underlying format enforces their uniqueness
 NOTE: it is the sub-tool's responsibility to accept this way of addressing nodes/properties irrespective of underlying format
 
@@ -377,9 +371,9 @@ NOTE: parent is optional as root is implied if missing
 
 COMMAND:
 ```
-attach-meta read [...valid_identifier] => Node | Property
+attach-meta read [...ValidIdentifier] => Node | Property
 
-NOTE: missing valid_identifier means implicit root (returns the full tree)
+NOTE: missing ValidIdentifier means implicit root (returns the full tree)
 NOTE: reading a node always returns its full subtree
 
 attach-meta read                                         => Node (root, full tree)
@@ -391,7 +385,7 @@ attach-meta read soc spi@7e400000 ad7124@0 spi_max_freq  => Property
 
 COMMAND:
 ```
-attach-meta update [valid_identifier, ...valid_identifier] [value] => CommonResponse
+attach-meta update [ValidIdentifier, ...ValidIdentifier] [value] => CommonResponse
 
 NOTE: only properties can be updated
 NOTE: update behaves like "upsert" if no property is found, it will be inserted
@@ -399,7 +393,7 @@ NOTE: update behaves like "upsert" if no property is found, it will be inserted
 
 COMMAND:
 ```
-attach-meta delete [...valid_identifier] => CommonResponse
+attach-meta delete [...ValidIdentifier] => CommonResponse
 
 NOTE: implicit root means it's a risky action, consider design which need --force to delete waterfall style
 TODO: for waterfall delete make it dry run and return a response containing nr of nodes which will be deleted, nr prop? (define response)
@@ -415,14 +409,14 @@ NOTE: delete means whatever the underlying TOOL considers
 
 COMMAND:
 ```
-attach-meta move [valid_identifier, ...valid_identifier] --to [...valid_identifier] => CommonResponse
+attach-meta move [ValidIdentifier, ...ValidIdentifier] --to [...ValidIdentifier] => CommonResponse
 
 NOTE: only nodes are movable
 NOTE: no implicit root for positional (can't move root)
 NOTE: no implicit root for --to
 NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
 
-Move workflow (happy) when no move is supported:
+Move workflow (fallback) when native move is unsupported:
   1. read node
   2. add node to new parent either by Device.key or name
   3. update all properties in new node with values from old node
@@ -431,7 +425,7 @@ Move workflow (happy) when no move is supported:
 
 COMMAND:
 ```
-attach-meta rename [valid_identifier, ...valid_identifier] [value] => CommonResponse
+attach-meta rename [ValidIdentifier, ...ValidIdentifier] [value] => CommonResponse
 
 NOTE: shall work for nodes and for properties as there are valid use-cases for renaming a property (e.g. aliases in devicetree)
 
@@ -457,12 +451,12 @@ COMMAND:
 ```
 Error = {
   kind:    "generic",            // discriminator; extended by future kinds
-  path:    valid_identifier[],   // empty array means file-level error
+  path:    ValidIdentifier[],   // empty array means file-level error
   message: string,
 }
 
 NOTE: it is the sub-tool's responsibility to translate its internal path
-      representation to the valid_identifier[] format
+      representation to the ValidIdentifier[] format
 
 ValidationResponse = {
   errors:   Error[],
@@ -479,11 +473,11 @@ NOTE: empty errors means valid; warnings may be present regardless
   MetaErrors = Error | NumericLimitError;
 */
 
-attach-meta validate [...valid_identifier] => ValidationResponse
+attach-meta validate [...ValidIdentifier] => ValidationResponse
 
 NOTE: the sub-tool always validates the full workfile
 NOTE: if a path is provided, attach-meta filters both errors and warnings
-      to those whose path starts with the given valid_identifier sequence —
+      to those whose path starts with the given ValidIdentifier sequence —
       filtering is attach-meta's responsibility, not the sub-tool's
 ```
 
