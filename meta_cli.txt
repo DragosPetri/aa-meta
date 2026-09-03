@@ -252,13 +252,7 @@ Tuple: {
   items: TYPES[]
 }
 
-// TODO: needs to be discussed if this is overkill or enum is enough
-Union: {
-  kind: "union",
-  variants: { name: string, type: TYPES }[]
-}
-
-TYPES = Number | String | Bool | Enum | Array | Tuple | Union;
+TYPES = Number | String | Bool | Enum | Array | Tuple;
 
 Property: {
   key: string,
@@ -324,7 +318,7 @@ Enum = {options: any[]};
 
 Config = {
   field_name: string,
-  category: string,
+  category?: string,
   description: string,
   type: "numeric" | "string" | "path" | Enum
   required: true | false,
@@ -408,6 +402,7 @@ COMMAND:
 attach-meta delete [...valid_identifier] => CommonResponse
 
 NOTE: implicit root means it's a risky action, consider design which need --force to delete waterfall style
+TODO: for waterfall delete make it dry run and return a response containing nr of nodes which will be deleted, nr prop? (define response)
 
 attach-meta delete => delete all
 attach-meta delete soc spi@7e400000 my_adc => delete node
@@ -424,7 +419,7 @@ attach-meta move [valid_identifier, ...valid_identifier] --to [...valid_identifi
 
 NOTE: only nodes are movable
 NOTE: no implicit root for positional (can't move root)
-NOTE: implicit root for --to (should --to be optional?)
+NOTE: no implicit root for --to
 NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
 
 Move workflow (happy) when no move is supported:
@@ -601,3 +596,6 @@ Open Items
 
 TODO: remove create property from meta
 TODO: consider aliasing system
+TODO: chaining validators
+TODO: strongly consider IR for parser x outputter
+TODO: Make claude skill to make a tool analog attachable (enabled by providing schemas for all structs)
