@@ -207,6 +207,7 @@ NOTE: ok is the only semantic gate — false means the operation failed
 NOTE: severity is a display hint for message, not a second error signal
 NOTE: ok: true  + severity: "warn"  => success with caveats
 NOTE: ok: false + severity: "error" => canonical failure shape
+NOTE: ok: true  + severity: "error" => protocol invariant violation; must never occur
 
 Number: {
   kind: "number",
@@ -345,6 +346,7 @@ attach-meta create-workfile => CommonResponse
 
 NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
 NOTE: the workfile format is entirely the sub-tool's responsibility — there is no format negotiation
+NOTE: the workfile path is a sub-tool config value — it is read and written via tool-config-get / tool-config-set
 ```
 
 COMMAND:
@@ -513,6 +515,7 @@ NOTE: the sub-tool always validates the full workfile
 NOTE: if a path is provided, attach-meta filters both errors and warnings
       to those whose path starts with the given ValidIdentifier sequence —
       filtering is attach-meta's responsibility, not the sub-tool's
+NOTE: file-level errors and warnings (path: []) are never filtered — they pass through regardless of any path argument
 ```
 
 ───────────────────────────────────────────────────────────────────
