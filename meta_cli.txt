@@ -82,13 +82,13 @@ Versioning:
           "read", "add", "delete", "move", "update", "rename", "alias",
           "validate", "generate", "build", "deploy",
           "list-devices", "create-workfile",
-          "tool-config get", "tool-config set",
+          "tool-config-get", "tool-config-set",
           "list-intelligence", "suggest"
         ]
       },
       "additionalProperties": { "$ref": "#/$defs/CommandMapping" },
       "required": [
-        "tool-config get", "tool-config set",
+        "tool-config-get", "tool-config-set",
         "create-workfile", "list-devices",
         "add", "read", "update", "delete",
         "validate"
@@ -279,11 +279,11 @@ attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | Init
   5. checks protocol_version major matches attach-meta's major; fails on mismatch
   6. if all valid => writes binary + manifest path to .attach-meta.toml
   7. (default) runs interactive config session:
-       a. requests all configs via tool-config get
+       a. requests all configs via tool-config-get
        b. loops through required fields asking for input
           (if default exists, asks if default shall be used)
        c. displays optional fields, asks if any shall be configured
-       d. calls tool-config set for each provided value
+       d. calls tool-config-set for each provided value
 
 InitResponse = CommonResponse & {
   config_complete: true | false,
@@ -291,7 +291,7 @@ InitResponse = CommonResponse & {
 }
 
 NOTE: --no-interactive skips step 7 and returns InitResponse instead of CommonResponse
-NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config get/set
+NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config-get/tool-config-set
 NOTE: the underlying TOOL is permitted to do any pre/post init operations
 ```
 
@@ -320,9 +320,9 @@ ToolConfigResponse = CommonResponse & {
   configs: Config[]
 }
 
-attach-meta tool-config get => gets all configs for the tool => ToolConfigResponse
-attach-meta tool-config get [field, ...field] => gets config of field(s) => ToolConfigResponse
-attach-meta tool-config set [field] [value] => set config field to value => CommonResponse
+attach-meta tool-config-get => gets all configs for the tool => ToolConfigResponse
+attach-meta tool-config-get [field, ...field] => gets config of field(s) => ToolConfigResponse
+attach-meta tool-config-set [field] [value] => set config field to value => CommonResponse
 ```
 
 ───────────────────────────────────────────────────────────────────
@@ -479,6 +479,10 @@ ValidationResponse = {
 };
 
 NOTE: empty errors means valid; warnings may be present regardless
+NOTE: ValidationResponse intentionally does not extend CommonResponse —
+      errors[] is self-describing (empty = valid); infra-level failures
+      (unreadable workfile, parse errors) are expressed as file-level
+      errors with path: []; transport failures are handled by non-zero exit
 
 /*
   Possibility of future extension:
@@ -543,6 +547,7 @@ IntelligenceArg = {
   name: string,
   description: string,
   required: true | false,
+  kind?: string,
 }
 
 ListIntelligenceResponse = CommonResponse & {
@@ -553,6 +558,8 @@ attach-meta list-intelligence => ListIntelligenceResponse
 
 NOTE: advertises which suggestion kinds the active tool supports
 NOTE: kind is a free-form string; tools may define any kinds they support
+NOTE: IntelligenceArg.kind uses the same kind tokens as completions[].kind —
+      the same kind that completes a flag value can complete a suggest arg
 ```
 
 COMMAND:
@@ -598,13 +605,22 @@ NOTE: a completions entry arg must not equal the subcommand name; tool authors m
 
 attach-meta side:
   1. If <subcommand> is absent: complete from known command list; done
-  2. Inspect the word immediately preceding <partial>:
+  2. If <subcommand> is "suggest":
+     a. If completing the first positional (kind): call list-intelligence; output Intelligence[].kind one per line; done
+     b. If completing the Nth subsequent positional:
+        - look up the Intelligence entry for the specified kind
+        - get IntelligenceArg[N] (0-indexed after kind)
+        - if the arg has a kind field and it is advertised by list-intelligence:
+          call suggest <IntelligenceArg.kind> [...preceding positional args]; output Suggestion[].value one per line
+        - otherwise: output nothing
+        done
+  3. Inspect the word immediately preceding <partial>:
      a. If it starts with "--": strip "--" → flag_name; look up completions[arg == flag_name]
      b. Otherwise: look up completions[arg == subcommand]
-  3. If a completions entry exists: check the kind is advertised by list-intelligence
-  4. If advertised: call attach-meta suggest <kind> [...preceding positional args]; output Suggestion[].value one per line
-  5. If not advertised or no completions entry: output nothing
-  6. Exit 0 (non-zero/empty stdout => no candidates)
+  4. If a completions entry exists: check the kind is advertised by list-intelligence
+  5. If advertised: call attach-meta suggest <kind> [...preceding positional args]; output Suggestion[].value one per line
+  6. If not advertised or no completions entry: output nothing
+  7. Exit 0 (non-zero/empty stdout => no candidates)
 
 NOTE: __complete is a shell adapter over suggest — tools implement suggest only
 NOTE: an unadvertised kind in completions silently yields no candidates; it is not an error
