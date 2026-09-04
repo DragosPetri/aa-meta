@@ -134,6 +134,12 @@ Versioning:
 // Tool args may only add optional properties — a top-level "required" keyword is
 // forbidden and attach-meta will reject a manifest that declares one, so the
 // protocol always controls what is required.
+//
+// In completions entries, arg has two roles:
+//   - a flag name (without "--") => completes the value of that flag
+//   - the subcommand name        => completes positional args for the command
+// The __complete dispatch rule distinguishes them by whether the preceding word
+// starts with "--". A flag name must not equal its command's own name.
 
 // Example — tool manifest entry for add:
 ```json
@@ -145,8 +151,9 @@ Versioning:
     }
   },
   "completions": [
-    { "arg": "parent", "kind": "node-key" },
-    { "arg": "bus_id", "kind": "bus-id" }
+    { "arg": "add",    "kind": "device-key" },
+    { "arg": "parent", "kind": "node-key"   },
+    { "arg": "bus_id", "kind": "bus-id"     }
   ]
 }
 ```
@@ -243,8 +250,10 @@ Node: {
   key: string,
   properties: Property[],
   children: Node[],
-  alias: string[]
+  alias?: string[]
 }
+
+NOTE: alias is absent when the active tool does not declare alias support in its manifest
 
 ValidIdentifier: string
 // any non-empty string; a node name within its parent scope, or an alias
@@ -268,9 +277,8 @@ attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | Init
   3. attach-meta reads manifest from that path
   4. validates manifest against the protocol meta-schema
   5. checks protocol_version major matches attach-meta's major; fails on mismatch
-  6. checks all required commands are present
-  7. if all valid => writes binary + manifest path to .attach-meta.toml
-  8. (default) runs interactive config session:
+  6. if all valid => writes binary + manifest path to .attach-meta.toml
+  7. (default) runs interactive config session:
        a. requests all configs via tool-config get
        b. loops through required fields asking for input
           (if default exists, asks if default shall be used)
@@ -282,7 +290,7 @@ InitResponse = CommonResponse & {
   missing_fields: string[],
 }
 
-NOTE: --no-interactive skips step 8 and returns InitResponse instead of CommonResponse
+NOTE: --no-interactive skips step 7 and returns InitResponse instead of CommonResponse
 NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config get/set
 NOTE: the underlying TOOL is permitted to do any pre/post init operations
 ```
@@ -385,7 +393,7 @@ NOTE: update behaves like "upsert" if no property is found, it will be inserted
 
 COMMAND:
 ```
-DeletePreview = {
+DeletePreview = CommonResponse & {
   node_count:     number,
   property_count: number,
 }
@@ -537,7 +545,11 @@ IntelligenceArg = {
   required: true | false,
 }
 
-attach-meta list-intelligence => Intelligence[]
+ListIntelligenceResponse = CommonResponse & {
+  intelligence: Intelligence[]
+}
+
+attach-meta list-intelligence => ListIntelligenceResponse
 
 NOTE: advertises which suggestion kinds the active tool supports
 NOTE: kind is a free-form string; tools may define any kinds they support
@@ -578,17 +590,19 @@ NOTE: help will contain useful information for a user what to do with the comple
 
 Autocompletion hook system:
 
-On <TAB>: attach-meta __complete --current-word-index <N> -- <args>
+On <TAB>: attach-meta __complete -- <subcommand> [args...] <partial>
 
-NOTE: strips global flags before interpreting index
-NOTE: index is 0 based
-NOTE: index 0 is command dispatch — handled by attach-meta, no tool involvement
+NOTE: global flags are stripped from args before processing
+NOTE: <partial> is the word currently being completed (may be empty)
+NOTE: a completions entry arg must not equal the subcommand name; tool authors must avoid this collision
 
 attach-meta side:
-  1. If completing the command name: complete from known command list; done
-  2. Look up the arg name at position N from the manifest's completions array
-  3. If a completions entry exists for that arg: check the kind is advertised by list-intelligence
-  4. If advertised: call attach-meta suggest <kind> [...preceding args]; output Suggestion[].value one per line
+  1. If <subcommand> is absent: complete from known command list; done
+  2. Inspect the word immediately preceding <partial>:
+     a. If it starts with "--": strip "--" → flag_name; look up completions[arg == flag_name]
+     b. Otherwise: look up completions[arg == subcommand]
+  3. If a completions entry exists: check the kind is advertised by list-intelligence
+  4. If advertised: call attach-meta suggest <kind> [...preceding positional args]; output Suggestion[].value one per line
   5. If not advertised or no completions entry: output nothing
   6. Exit 0 (non-zero/empty stdout => no candidates)
 
@@ -596,6 +610,8 @@ NOTE: __complete is a shell adapter over suggest — tools implement suggest onl
 NOTE: an unadvertised kind in completions silently yields no candidates; it is not an error
 NOTE: agents call suggest directly for structured Suggestion[] output;
       shells call __complete for line-per-value output — same code path
+NOTE: for positional completion, all preceding positional args are forwarded as context
+      to suggest — the subtool can dynamically vary suggestions based on prior tokens
 
 ───────────────────────────────────────────────────────────────────
 Open Items
