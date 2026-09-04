@@ -241,14 +241,17 @@ Tuple: {
 TYPES = Number | String | Bool | Enum | Array | Tuple;
 // NOTE: TYPES is exclusively used by the read command (Node properties)
 
+PropertyValue = string | number | bool | PropertyValue[]
+
 Property: {
   kind: "property",
   key: string,
   type: TYPES,
-  value: string | number | bool | (string | number)[] | (string | number)[][]
+  value: PropertyValue
 }
 
 NOTE: value is a JSON-serialisable value whose concrete shape matches the declared type
+NOTE: PropertyValue is recursive — nesting depth follows the structure declared by type
 
 Node: {
   kind: "node",
@@ -380,6 +383,8 @@ attach-meta read [...ValidIdentifier] => Node | Property
 
 NOTE: missing ValidIdentifier means implicit root (returns the full tree)
 NOTE: reading a node always returns its full subtree
+NOTE: path is absolute from root — there is no implicit tree-search; a single identifier refers to a root-level node or property
+NOTE: aliases may be used as path components if the tool declares alias support; path resolution, including alias resolution, is the subtool's responsibility
 
 attach-meta read                                         => Node (root, full tree)
 attach-meta read soc spi@7e400000 my_adc                => Node (subtree rooted at my_adc)
@@ -394,6 +399,7 @@ attach-meta update [ValidIdentifier, ...ValidIdentifier] --with [value] => Commo
 
 NOTE: only properties can be updated
 NOTE: update behaves like "upsert" if no property is found, it will be inserted
+NOTE: --with takes a raw string forwarded as-is to the subtool; the subtool is responsible for parsing and type coercion
 ```
 
 COMMAND:
