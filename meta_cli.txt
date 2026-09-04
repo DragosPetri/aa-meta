@@ -8,7 +8,7 @@ Registration requires a single fixed command:
 A fully conformant Analog Attachable implements the feedback loop:
 
   Required commands:
-    - tool-config get, tool-config set
+    - tool-config-get, tool-config-set
     - create-workfile
     - list-devices
     - add, read, update, delete
@@ -243,8 +243,11 @@ TYPES = Number | String | Bool | Enum | Array | Tuple;
 
 Property: {
   key: string,
-  type: TYPES
+  type: TYPES,
+  value: string | number | bool | (string | number | bool)[]
 }
+
+NOTE: value is a JSON-serialisable value whose concrete shape matches the declared type
 
 Node: {
   key: string,
@@ -422,10 +425,12 @@ NOTE: no implicit root for --to
 NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
 
 Move workflow (fallback) when native move is unsupported:
-  1. read node
-  2. add node to new parent either by Device.key or name
-  3. update all properties in new node with values from old node
-  4. delete old node
+  1. read node (returns full subtree)
+  2. depth-first, add each node in the subtree under its new parent:
+     - the root node is added under the target parent by Device.key or name
+     - each child is added under its corresponding newly-created parent
+  3. for each added node, update all its properties with values read in step 1
+  4. delete old node with --force
 ```
 
 COMMAND:
@@ -437,10 +442,12 @@ NOTE: shall work for nodes and for properties as there are valid use-cases for r
 Rename workflow (fallback) when not natively supported by the underlying tool:
 
   For a node:
-    1. read node
-    2. add node with new name under same parent
-    3. update all properties in new node with values from old node
-    4. delete old node
+    1. read node (returns full subtree)
+    2. add a new node with the new name under the same parent
+    3. depth-first, re-create all descendants under the new node:
+       add each by Device.key or name under its corresponding new parent
+    4. for each added node, update all its properties with values read in step 1
+    5. delete old node with --force
 
   For a property:
     1. read property value
