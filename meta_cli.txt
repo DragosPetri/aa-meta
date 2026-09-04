@@ -45,6 +45,22 @@ NOTE: tool extensions are purely additive — tool authors may only declare opti
 NOTE: on every invocation, attach-meta reads the manifest from disk and merges the tool's
       args with the protocol base schema using allOf before validating input
 
+Versioning:
+  protocol_version follows semver (MAJOR.MINOR.PATCH)
+
+  MAJOR — breaking changes: removed or renamed commands, changed required
+           response shapes, changed transport contract
+  MINOR — backwards-compatible additions: new optional commands, new
+           optional fields on existing response types
+  PATCH — no behavioral change: clarifications, corrections
+
+  Mismatch handling (checked at init time):
+    major mismatch  => hard error; attach-meta refuses to proceed
+    minor mismatch  => allowed; attach-meta ignores unknown fields from a
+                       newer tool, a newer attach-meta degrades gracefully
+                       against an older tool
+    patch mismatch  => always compatible; no action
+
 // attach-meta ships a JSON Schema validator and validates every incoming manifest
 // against this meta-schema at init time.
 ```json
@@ -251,7 +267,7 @@ attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | Init
   2. sub-tool writes manifest to disk, outputs path to stdout
   3. attach-meta reads manifest from that path
   4. validates manifest against the protocol meta-schema
-  5. checks protocol_version matches attach-meta's version
+  5. checks protocol_version major matches attach-meta's major; fails on mismatch
   6. checks all required commands are present
   7. if all valid => writes binary + manifest path to .attach-meta.toml
   8. (default) runs interactive config session:
