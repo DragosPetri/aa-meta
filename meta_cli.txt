@@ -45,7 +45,6 @@ NOTE: tool extensions are purely additive — tool authors may only declare opti
 NOTE: on every invocation, attach-meta reads the manifest from disk and merges the tool's
       args with the protocol base schema using allOf before validating input
 
-// Option A — JSON Schema (recommended)
 // attach-meta ships a JSON Schema validator and validates every incoming manifest
 // against this meta-schema at init time.
 ```json
@@ -135,52 +134,6 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
 }
 ```
 
-// Option B — Simple (no JSON Schema dependency)
-```
-CommandName = "read" | "add" | "delete" | "move" | "update" | "rename"
-            | "validate" | "generate" | "build" | "deploy"
-            | "list-devices" | "create-workfile"
-            | "tool-config get" | "tool-config set"
-            | "list-intelligence" | "suggest"
-
-Positional = {
-  kind:     "positional",
-  name:     string,
-  required: true | false,
-  variadic: true | false,
-  suggest?: string,   // suggest kind to call when completing this position
-}
-
-Flag = {
-  kind:     "flag",
-  name:     string,
-  required: true | false,
-  variadic: true | false,
-  suggest?: string,   // suggest kind to call when completing this flag's value
-}
-
-AtLeastOne = {
-  kind: "at_least_one",
-  args: string[],
-}
-
-Constraint = AtLeastOne   // TODO: more constraint kinds likely needed
-
-CommandMapping = {
-  argv: string[],
-  args: (Positional | Flag)[],
-  constraints?: Constraint[],
-}
-
-Manifest = {
-  protocol_version: string,
-  commands: { [CommandName]: CommandMapping },
-  // required entries: tool-config get, tool-config set, create-workfile,
-  // list-devices, add, read, update, delete, validate
-  // optional entries: move, rename
-}
-```
-
 ───────────────────────────────────────────────────────────────────
 Transport Contract
 ───────────────────────────────────────────────────────────────────
@@ -247,6 +200,7 @@ Tuple: {
 }
 
 TYPES = Number | String | Bool | Enum | Array | Tuple;
+// NOTE: TYPES is exclusively used by the read command (Node properties)
 
 Property: {
   key: string,
@@ -261,7 +215,8 @@ Node: {
 }
 
 ValidIdentifier: string
-// a node name within its parent scope, or an alias
+// any non-empty string; a node name within its parent scope, or an alias
+// character grammar is not constrained by the protocol — sub-tools define what is valid
 
 NOTE: a sequence of ValidIdentifiers forms a path resolved left-to-right from root
 NOTE: a path may terminate at any Node or at a property of any Node
@@ -308,25 +263,26 @@ NOTE: every TOOL needs to provide a mechanism for reading/writing its config fil
 
 COMMAND:
 ```
-Enum = {options: any[]};
+ConfigEnum = { options: (string | number)[] }
 
 Config = {
   field_name: string,
   category?: string,
   description: string,
-  type: "numeric" | "string" | "path" | Enum
+  type: "numeric" | "string" | "bool" | "path" | ConfigEnum,
   required: true | false,
-  default: any | null, // should not be optional field, but must express optionality
+  default: any | null,
 }
 
-TODO: make sure Config design is sound
-TODO: consider if there is a use case for non required default configs to be able to be unset
+NOTE: default must always be present; null means no default exists
 
-attach-meta tool-config get => gets all configs for the tool => Config[]
-attach-meta tool-config get [field, ...field] => gets config of field(s) => Config | Config[]
+ToolConfigResponse = CommonResponse & {
+  configs: Config[]
+}
+
+attach-meta tool-config get => gets all configs for the tool => ToolConfigResponse
+attach-meta tool-config get [field, ...field] => gets config of field(s) => ToolConfigResponse
 attach-meta tool-config set [field] [value] => set config field to value => CommonResponse
-
-TODO: consider a variant of set where we can have variadic entries
 ```
 
 ───────────────────────────────────────────────────────────────────
@@ -352,7 +308,11 @@ Device = {
   key: string,
 }
 
-attach-meta list-devices => Device[]
+ListDevicesResponse = CommonResponse & {
+  devices: Device[]
+}
+
+attach-meta list-devices => ListDevicesResponse
 
 NOTE: keys need not be unique => the underlying TOOL can decide to have multiple tags for one key by creating different entries => this pushes the responsibility of deciding how to group devices onto the underlying TOOL
 ```
@@ -385,7 +345,7 @@ attach-meta read soc spi@7e400000 ad7124@0 spi_max_freq  => Property
 
 COMMAND:
 ```
-attach-meta update [ValidIdentifier, ...ValidIdentifier] [value] => CommonResponse
+attach-meta update [ValidIdentifier, ...ValidIdentifier] --with [value] => CommonResponse
 
 NOTE: only properties can be updated
 NOTE: update behaves like "upsert" if no property is found, it will be inserted
@@ -393,18 +353,23 @@ NOTE: update behaves like "upsert" if no property is found, it will be inserted
 
 COMMAND:
 ```
-attach-meta delete [...ValidIdentifier] => CommonResponse
+DeletePreview = {
+  node_count:     number,
+  property_count: number,
+}
 
-NOTE: implicit root means it's a risky action, consider design which need --force to delete waterfall style
-TODO: for waterfall delete make it dry run and return a response containing nr of nodes which will be deleted, nr prop? (define response)
+attach-meta delete [...ValidIdentifier] [--force] => CommonResponse | DeletePreview
 
-attach-meta delete => delete all
-attach-meta delete soc spi@7e400000 my_adc => delete node
-attach-meta delete my_adc => delete node
-attach-meta delete my_adc spi_max_freq => delete/unset/reset property
-attach-meta delete soc spi@7e400000 ad7124@0 spi_max_frequency => delete property
-
+NOTE: leaf nodes and properties are deleted directly without --force
+NOTE: deleting a non-leaf node or implicit root without --force returns DeletePreview (no changes made)
+NOTE: --force is required to execute a waterfall delete, including root
 NOTE: delete means whatever the underlying TOOL considers
+
+attach-meta delete                                           => DeletePreview (root, dry run)
+attach-meta delete --force                                   => CommonResponse (delete all)
+attach-meta delete soc spi@7e400000 my_adc                  => CommonResponse | DeletePreview
+attach-meta delete my_adc spi_max_freq                      => CommonResponse (property)
+attach-meta delete soc spi@7e400000 ad7124@0 spi_max_freq   => CommonResponse (property)
 ```
 
 COMMAND:
@@ -543,14 +508,18 @@ Suggestion = {
   display_string?: string,
 }
 
-attach-meta suggest <kind> [...args] => Suggestion[]
+SuggestResponse = CommonResponse & {
+  suggestions: Suggestion[]
+}
+
+attach-meta suggest <kind> [...args] => SuggestResponse
 
 NOTE: only valid for kinds advertised by list-intelligence
 NOTE: args are kind-specific, described by Intelligence.args
 NOTE: autocompletion for suggest, as for all other commands, is the responsibility of the subtool
 
 // example:
-attach-meta suggest parent <node_key> => Suggestion[]
+attach-meta suggest parent <node_key> => SuggestResponse
 ```
 
 ───────────────────────────────────────────────────────────────────
