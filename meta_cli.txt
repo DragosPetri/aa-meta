@@ -15,7 +15,7 @@ A fully conformant Analog Attachable implements the feedback loop:
     - validate
 
   Optional commands (convenience):
-    - move, rename
+    - move, rename, alias
 
   Optional commands (build pipeline):
     - generate, build, deploy
@@ -63,7 +63,7 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
       "type": "object",
       "propertyNames": {
         "enum": [
-          "read", "add", "delete", "move", "update", "rename",
+          "read", "add", "delete", "move", "update", "rename", "alias",
           "validate", "generate", "build", "deploy",
           "list-devices", "create-workfile",
           "tool-config get", "tool-config set",
@@ -92,6 +92,18 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
         },
         "args": {
           "$ref": "https://json-schema.org/draft/2020-12/schema"
+        },
+        "completions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["arg", "kind"],
+            "additionalProperties": false,
+            "properties": {
+              "arg":  { "type": "string" },
+              "kind": { "type": "string" }
+            }
+          }
         }
       }
     }
@@ -115,7 +127,11 @@ NOTE: on every invocation, attach-meta reads the manifest from disk and merges t
     "properties": {
       "bus_id": { "type": "string" }
     }
-  }
+  },
+  "completions": [
+    { "arg": "parent", "kind": "node-key" },
+    { "arg": "bus_id", "kind": "bus-id" }
+  ]
 }
 ```
 
@@ -408,6 +424,16 @@ Rename workflow (fallback) when not natively supported by the underlying tool:
     3. delete old property key
 ```
 
+COMMAND:
+```
+attach-meta alias [...ValidIdentifier] --with <value>   => CommonResponse
+attach-meta alias [...ValidIdentifier] --remove <value> => CommonResponse
+
+NOTE: --with and --remove are mutually exclusive
+NOTE: path identifies the target node; aliases are not valid on properties
+NOTE: presence of alias in the manifest declares support — not all formats support aliases
+```
+
 ───────────────────────────────────────────────────────────────────
 Commands — Validation
 ───────────────────────────────────────────────────────────────────
@@ -544,12 +570,14 @@ NOTE: index 0 is command dispatch — handled by attach-meta, no tool involvemen
 
 attach-meta side:
   1. If completing the command name: complete from known command list; done
-  2. Look up the arg at position N in the manifest for the active command
-  3. If that arg declares a suggest kind: call attach-meta suggest <kind> [...preceding args]
-  4. Output Suggestion[].value one per line to stdout
-  5. Exit 0 (non-zero/empty stdout => no candidates)
+  2. Look up the arg name at position N from the manifest's completions array
+  3. If a completions entry exists for that arg: check the kind is advertised by list-intelligence
+  4. If advertised: call attach-meta suggest <kind> [...preceding args]; output Suggestion[].value one per line
+  5. If not advertised or no completions entry: output nothing
+  6. Exit 0 (non-zero/empty stdout => no candidates)
 
 NOTE: __complete is a shell adapter over suggest — tools implement suggest only
+NOTE: an unadvertised kind in completions silently yields no candidates; it is not an error
 NOTE: agents call suggest directly for structured Suggestion[] output;
       shells call __complete for line-per-value output — same code path
 
