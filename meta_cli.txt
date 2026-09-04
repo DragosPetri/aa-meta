@@ -242,14 +242,16 @@ TYPES = Number | String | Bool | Enum | Array | Tuple;
 // NOTE: TYPES is exclusively used by the read command (Node properties)
 
 Property: {
+  kind: "property",
   key: string,
   type: TYPES,
-  value: string | number | bool | (string | number | bool)[]
+  value: string | number | bool | (string | number)[] | (string | number)[][]
 }
 
 NOTE: value is a JSON-serialisable value whose concrete shape matches the declared type
 
 Node: {
+  kind: "node",
   key: string,
   properties: Property[],
   children: Node[],
@@ -584,7 +586,8 @@ attach-meta suggest <kind> [...args] => SuggestResponse
 
 NOTE: only valid for kinds advertised by list-intelligence
 NOTE: args are kind-specific, described by Intelligence.args
-NOTE: autocompletion for suggest, as for all other commands, is the responsibility of the subtool
+NOTE: autocompletion for suggest is handled by attach-meta via __complete step 2 (calls list-intelligence,
+      then suggest); the subtool only needs to implement list-intelligence and suggest
 
 // example:
 attach-meta suggest parent <node_key> => SuggestResponse
