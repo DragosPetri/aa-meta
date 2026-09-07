@@ -257,7 +257,7 @@ Tuple: {
 TYPES = Number | String | Bool | Enum | Array | Tuple;
 // NOTE: TYPES is exclusively used by the read command (Node properties)
 
-PropertyValue = string | number | bool | PropertyValue[]
+PropertyValue = null | string | number | bool | PropertyValue[]
 
 Property: {
   kind: "property",
@@ -346,7 +346,9 @@ Config = {
   default: any | null,
 }
 
-NOTE: default must always be present; null means no default exists
+NOTE: default must always be present; null means no default exists; null is not a
+      valid default value — configs in this protocol are always paths, strings,
+      numbers, or enums
 
 ToolConfigResponse = CommonResponse & {
   configs: Config[]
