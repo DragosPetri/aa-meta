@@ -69,6 +69,14 @@ Versioning:
                        against an older tool
     patch mismatch  => always compatible; no action
 
+  NOTE: version is checked at init time and re-checked whenever the manifest
+        file's mtime changes (see manifest re-read rules above). A tool update
+        that changes protocol_version but does not cause the manifest file to
+        be rewritten will not be detected — re-running init is required after
+        any tool update that changes protocol_version.
+  TODO: consider a mechanism to detect tool binary updates independently of
+        manifest mtime so that a stale major version cannot go unnoticed
+
 // attach-meta ships a JSON Schema validator and validates every incoming manifest
 // against this meta-schema at init time.
 ```json
@@ -294,7 +302,7 @@ Commands — Initialization
 
 COMMAND:
 ```
-attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | InitResponse
+attach-meta init <analog_attachable> [--no-interactive] => InitResponse
 
   1. calls <analog_attachable> attach-manifest
   2. sub-tool writes manifest to disk, outputs path to stdout
@@ -322,7 +330,8 @@ NOTE: attach-manifest failure cases — all abort init with an error:
   - file at the path contains malformed JSON
   - JSON fails meta-schema validation (step 4)
   - protocol_version major mismatch (step 5)
-NOTE: --no-interactive skips step 7 and returns InitResponse instead of CommonResponse
+NOTE: InitResponse is always returned regardless of --no-interactive
+NOTE: --no-interactive skips step 7; config_complete and missing_fields reflect the state after init
 NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config-get/tool-config-set
 NOTE: the underlying TOOL is permitted to do any pre/post init operations
 ```
@@ -434,7 +443,7 @@ attach-meta read soc spi@7e400000 ad7124@0 spi_max_freq  => Property
 
 COMMAND:
 ```
-attach-meta update [ValidIdentifier, ...ValidIdentifier] --with [value] => CommonResponse
+attach-meta update [ValidIdentifier, ...ValidIdentifier] --with <value> => CommonResponse
 
 NOTE: only properties can be updated
 NOTE: update behaves like "upsert" — if the property is not found, it is inserted
