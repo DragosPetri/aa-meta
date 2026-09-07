@@ -403,10 +403,17 @@ Commands — CRUD
 
 COMMAND:
 ```
-attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => CommonResponse
+AddResponse = CommonResponse & {
+  key:  string,
+  path: ValidIdentifier[],
+}
+
+attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => AddResponse
 
 NOTE: at least one of Device.key or name need to appear
 NOTE: parent is optional as root is implied if missing
+NOTE: key is the device key of the created node (tool-generated if not supplied by caller)
+NOTE: path is the absolute path from root to the created node
 ```
 
 COMMAND:
@@ -430,7 +437,8 @@ COMMAND:
 attach-meta update [ValidIdentifier, ...ValidIdentifier] --with [value] => CommonResponse
 
 NOTE: only properties can be updated
-NOTE: update behaves like "upsert" if no property is found, it will be inserted
+NOTE: update behaves like "upsert" — if the property is not found, it is inserted
+      under the resolved parent node; all nodes in the path must already exist
 NOTE: --with takes a raw string forwarded as-is to the subtool; the subtool is responsible for parsing and type coercion
 ```
 
@@ -439,6 +447,7 @@ COMMAND:
 DeletePreview = CommonResponse & {
   node_count:     number,
   property_count: number,
+  paths:          ValidIdentifier[][],
 }
 
 attach-meta delete [...ValidIdentifier] [--force] => CommonResponse | DeletePreview
@@ -471,6 +480,10 @@ Move workflow (fallback) when native move is unsupported:
      - each child is added under its corresponding newly-created parent
   3. for each added node, update all its properties with values read in step 1
   4. delete old node with --force
+
+NOTE: the fallback is not atomic — a failure at any step leaves the workfile in its
+      current partial state; attach-meta reports which step failed; callers are
+      responsible for inspecting and recovering the workfile
 ```
 
 COMMAND:
@@ -493,6 +506,10 @@ Rename workflow (fallback) when not natively supported by the underlying tool:
     1. read property value
     2. update (upsert) new property key with that value
     3. delete old property key
+
+NOTE: the fallback is not atomic — a failure at any step leaves the workfile in its
+      current partial state; attach-meta reports which step failed; callers are
+      responsible for inspecting and recovering the workfile
 ```
 
 COMMAND:
