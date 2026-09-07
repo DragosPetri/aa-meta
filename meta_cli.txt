@@ -418,12 +418,12 @@ AddResponse = CommonResponse & {
   path: ValidIdentifier[],
 }
 
-attach-meta add [[Device.key | name] | [Device.key && name]] [parent?] => AddResponse
+attach-meta add (--key <Device.key> | --name <name> | --key <Device.key> --name <name>) [--parent <ValidIdentifier>] => AddResponse
 
-NOTE: at least one of Device.key or name need to appear
-NOTE: parent is optional as root is implied if missing
-NOTE: key is the device key of the created node (tool-generated if not supplied by caller)
-NOTE: path is the absolute path from root to the created node
+NOTE: at least one of --key or --name must be present; both may be supplied together
+NOTE: --parent is optional; root is implied when absent
+NOTE: key in AddResponse is the device key of the created node (tool-generated if --key is not supplied)
+NOTE: path in AddResponse is the absolute path from root to the created node
 ```
 
 COMMAND:
