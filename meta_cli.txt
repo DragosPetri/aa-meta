@@ -367,8 +367,13 @@ COMMAND:
 ```
 TODO: consider better naming convention
 
-attach-meta create-workfile => CommonResponse
+CreateWorkfileResponse = CommonResponse & {
+  path: string,
+}
 
+attach-meta create-workfile => CreateWorkfileResponse
+
+NOTE: path is the absolute path to the created workfile
 NOTE: the "workfile" must be a tree-like structure (e.g. flat arrays are tree-like, devicetree is tree-like)
 NOTE: the workfile format is entirely the sub-tool's responsibility — there is no format negotiation
 NOTE: the workfile path is a sub-tool config value — it is read and written via tool-config-get / tool-config-set
