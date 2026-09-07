@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/alias",
+  "description": "Base schema for the alias command. Exactly one of --with or --remove must be present.",
+  "type": "object",
+  "properties": {
+    "with":   { "type": "string" },
+    "remove": { "type": "string" }
+  },
+  "oneOf": [
+    { "required": ["with"] },
+    { "required": ["remove"] }
+  ]
+}

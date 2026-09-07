@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/move",
+  "description": "Base schema for the move command. --to is required.",
+  "type": "object",
+  "properties": {
+    "to": { "type": "string" }
+  },
+  "required": ["to"]
+}

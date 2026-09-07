@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/list-intelligence",
+  "description": "Base schema for list-intelligence. No named flags.",
+  "type": "object",
+  "properties": {}
+}

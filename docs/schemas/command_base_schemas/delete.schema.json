@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/delete",
+  "description": "Base schema for the delete command. --force is optional.",
+  "type": "object",
+  "properties": {
+    "force": { "type": "boolean" }
+  }
+}

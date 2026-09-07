@@ -1,85 +1,186 @@
-pub struct CommandSpec {
-    pub key: &'static str,
-    pub argv: &'static [&'static str],
-    pub description: &'static str,
+use anyhow::Result;
+use jsonschema::{options, Validator};
+use serde_json::Value;
+
+use crate::error::AttachMetaError;
+
+static MANIFEST_SCHEMA: &str = include_str!("../docs/schemas/manifest.schema.json");
+
+pub fn manifest_validator() -> Result<Validator> {
+    let schema: Value =
+        serde_json::from_str(MANIFEST_SCHEMA).expect("embedded manifest schema is invalid JSON");
+    let mut opts = options();
+    opts.with_draft(jsonschema::Draft::Draft202012);
+    opts.build(&schema)
+        .map_err(|e| anyhow::anyhow!("failed to compile manifest meta-schema: {e}"))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiscoveryKey {
-    CreateNode,
-    CreateProperty,
-    CreateWorkfile,
-    ReadNode,
-    ReadProperty,
-    Update,
-    DeleteNode,
-    DeleteProperty,
-    Validate,
-    Generate,
-    Build,
-    Deploy,
-    Config,
-    Init,
-    ListDevices,
-    DoubleComplete,
+pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), AttachMetaError> {
+    let validator =
+        manifest_validator().map_err(|e| AttachMetaError::InternalError(e.to_string()))?;
+
+    let result = validator.apply(manifest_json);
+    if !result.flag() {
+        let errors: Vec<String> = validator
+            .iter_errors(manifest_json)
+            .map(|e| format!("{} at {}", e, e.instance_path))
+            .collect();
+        return Err(AttachMetaError::ManifestError(format!(
+            "manifest meta-schema validation failed:\n  {}",
+            errors.join("\n  ")
+        )));
+    }
+
+    check_no_required_in_args(manifest_json)?;
+
+    Ok(())
 }
 
-impl DiscoveryKey {
-    pub fn spec(self) -> CommandSpec {
-        match self {
-            DiscoveryKey::CreateNode     => CommandSpec { key: "create_node",     argv: &["create", "node"],     description: "Add a new node" },
-            DiscoveryKey::CreateProperty => CommandSpec { key: "create_property", argv: &["create", "property"], description: "Add a new property" },
-            DiscoveryKey::CreateWorkfile => CommandSpec { key: "create_workfile", argv: &["create", "workfile"], description: "Create a new workfile" },
-            DiscoveryKey::ReadNode       => CommandSpec { key: "read_node",       argv: &["read",   "node"],     description: "Read values of a node" },
-            DiscoveryKey::ReadProperty   => CommandSpec { key: "read_property",   argv: &["read",   "property"], description: "Read values of a property" },
-            DiscoveryKey::Update         => CommandSpec { key: "update",          argv: &["update"],             description: "Update primitive values" },
-            DiscoveryKey::DeleteNode     => CommandSpec { key: "delete_node",     argv: &["delete", "node"],     description: "Delete a node" },
-            DiscoveryKey::DeleteProperty => CommandSpec { key: "delete_property", argv: &["delete", "property"], description: "Delete a property" },
-            DiscoveryKey::Validate       => CommandSpec { key: "validate",        argv: &["validate"],           description: "Validate workfile, node, or primitive" },
-            DiscoveryKey::Generate       => CommandSpec { key: "generate",        argv: &["generate"],           description: "Generate an artifact from workfile" },
-            DiscoveryKey::Build          => CommandSpec { key: "build",           argv: &["build"],              description: "Build from artifact" },
-            DiscoveryKey::Deploy         => CommandSpec { key: "deploy",          argv: &["deploy"],             description: "Deploy built artifact to target" },
-            DiscoveryKey::Config         => CommandSpec { key: "config",          argv: &["config"],             description: "Set a config value" },
-            DiscoveryKey::Init          => CommandSpec { key: "init",            argv: &["init"],               description: "Initialize a new workfile or project" },
-            DiscoveryKey::ListDevices   => CommandSpec { key: "list_devices",    argv: &["list-devices"],       description: "List available devices" },
-            DiscoveryKey::DoubleComplete  => CommandSpec { key: "__complete",      argv: &["__complete"],         description: "Return completion candidates (shell, word-index, full word list)" },
+fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), AttachMetaError> {
+    let commands = match manifest.get("commands").and_then(|c| c.as_object()) {
+        Some(c) => c,
+        None => return Ok(()),
+    };
+
+    for (cmd_name, mapping) in commands {
+        if let Some(args) = mapping.get("args") {
+            if args.get("required").is_some() {
+                return Err(AttachMetaError::ManifestError(format!(
+                    "command '{cmd_name}' declares a top-level 'required' in args — \
+                     tool-declared args may only add optional properties"
+                )));
+            }
         }
     }
 
-    // Manual list used for documentation and schema output. Must stay in sync with
-    // the enum variants above — a missing entry here means it's absent from
-    // `attach-meta schema` output but does not affect dispatch correctness.
-    pub const ALL: &'static [DiscoveryKey] = &[
-        DiscoveryKey::CreateNode,
-        DiscoveryKey::CreateProperty,
-        DiscoveryKey::CreateWorkfile,
-        DiscoveryKey::ReadNode,
-        DiscoveryKey::ReadProperty,
-        DiscoveryKey::Update,
-        DiscoveryKey::DeleteNode,
-        DiscoveryKey::DeleteProperty,
-        DiscoveryKey::Validate,
-        DiscoveryKey::Generate,
-        DiscoveryKey::Build,
-        DiscoveryKey::Deploy,
-        DiscoveryKey::Config,
-        DiscoveryKey::Init,
-        DiscoveryKey::ListDevices,
-        DiscoveryKey::DoubleComplete,
-    ];
+    Ok(())
+}
+
+pub fn validate_input(schema: &Value, input: &Value) -> std::result::Result<(), AttachMetaError> {
+    let mut opts = options();
+    opts.with_draft(jsonschema::Draft::Draft202012);
+    let validator = opts
+        .build(schema)
+        .map_err(|e| AttachMetaError::InputError(format!("failed to compile input schema: {e}")))?;
+
+    let result = validator.apply(input);
+    if !result.flag() {
+        let errors: Vec<String> = validator
+            .iter_errors(input)
+            .map(|e| format!("{}", e))
+            .collect();
+        return Err(AttachMetaError::InputError(format!(
+            "input validation failed:\n  {}",
+            errors.join("\n  ")
+        )));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
+    use serde_json::json;
+
+    fn minimal_manifest() -> Value {
+        json!({
+            "protocol_version": "1.0.0",
+            "commands": {
+                "add": { "argv": ["tool", "add"] },
+                "read": { "argv": ["tool", "read"] },
+                "update": { "argv": ["tool", "update"] },
+                "delete": { "argv": ["tool", "delete"] },
+                "validate": { "argv": ["tool", "validate"] },
+                "tool-config-get": { "argv": ["tool", "config-get"] },
+                "tool-config-set": { "argv": ["tool", "config-set"] },
+                "create-workfile": { "argv": ["tool", "workfile"] },
+                "list-devices": { "argv": ["tool", "devices"] }
+            }
+        })
+    }
 
     #[test]
-    fn all_keys_are_unique() {
-        let mut seen = HashSet::new();
-        for key in DiscoveryKey::ALL {
-            let k = key.spec().key;
-            assert!(seen.insert(k), "duplicate key in DiscoveryKey::ALL: {k}");
+    fn valid_manifest_passes() {
+        validate_manifest(&minimal_manifest()).unwrap();
+    }
+
+    #[test]
+    fn missing_required_command_fails() {
+        let mut m = minimal_manifest();
+        m["commands"].as_object_mut().unwrap().remove("add");
+        let err = validate_manifest(&m).unwrap_err();
+        assert!(matches!(err, AttachMetaError::ManifestError(_)));
+    }
+
+    #[test]
+    fn top_level_required_in_args_rejected() {
+        let mut m = minimal_manifest();
+        m["commands"]["add"]["args"] = json!({
+            "properties": {
+                "bus_id": { "type": "string" }
+            },
+            "required": ["bus_id"]
+        });
+        let err = validate_manifest(&m).unwrap_err();
+        match err {
+            AttachMetaError::ManifestError(msg) => {
+                assert!(msg.contains("top-level 'required'"), "got: {msg}");
+            }
+            other => panic!("expected ManifestError, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn unknown_command_name_rejected() {
+        let mut m = minimal_manifest();
+        m["commands"]["bogus-command"] = json!({ "argv": ["tool", "bogus"] });
+        let err = validate_manifest(&m).unwrap_err();
+        assert!(matches!(err, AttachMetaError::ManifestError(_)));
+    }
+
+    #[test]
+    fn input_validation_passes() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "key": { "type": "string" }
+            },
+            "required": ["key"]
+        });
+        let input = json!({ "key": "foo" });
+        validate_input(&schema, &input).unwrap();
+    }
+
+    #[test]
+    fn input_validation_fails_missing_required() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "key": { "type": "string" }
+            },
+            "required": ["key"]
+        });
+        let input = json!({});
+        let err = validate_input(&schema, &input).unwrap_err();
+        assert!(matches!(err, AttachMetaError::InputError(_)));
+    }
+
+    #[test]
+    fn manifest_with_args_and_completions_passes() {
+        let mut m = minimal_manifest();
+        m["commands"]["add"] = json!({
+            "argv": ["tool", "add"],
+            "args": {
+                "properties": {
+                    "bus_id": { "type": "string" }
+                }
+            },
+            "timeout_ms": 5000,
+            "completions": [
+                { "arg": "add", "kind": "device-key" }
+            ]
+        });
+        validate_manifest(&m).unwrap();
     }
 }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/add",
+  "description": "Base schema for the add command. At least one of key or name must be present.",
+  "type": "object",
+  "properties": {
+    "key":    { "type": "string" },
+    "name":   { "type": "string" },
+    "parent": { "type": "string" }
+  },
+  "anyOf": [
+    { "required": ["key"] },
+    { "required": ["name"] }
+  ]
+}

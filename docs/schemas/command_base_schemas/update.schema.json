@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/update",
+  "description": "Base schema for the update command. --with is required.",
+  "type": "object",
+  "properties": {
+    "with": { "type": "string" }
+  },
+  "required": ["with"]
+}

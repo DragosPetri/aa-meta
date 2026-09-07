@@ -1,0 +1,367 @@
+use std::path::Path;
+
+use crate::config::AppConfig;
+use crate::manifest_store;
+use crate::protocol::manifest::{CommandName, Manifest};
+use crate::transport;
+
+pub fn run_complete(
+    args: &[String],
+    config: &mut AppConfig,
+    config_path: &Path,
+    tool_override: Option<&str>,
+) {
+    // __complete -- <subcommand> [args...] <partial>
+    // args is everything after "--"
+    if args.is_empty() {
+        print_command_list();
+        return;
+    }
+
+    let subcommand = &args[0];
+    let rest = &args[1..];
+    let partial = rest.last().map(|s| s.as_str()).unwrap_or("");
+
+    // Step 1: no subcommand content -> complete from command list
+    let cmd = match CommandName::from_str(subcommand) {
+        Some(c) => c,
+        None => {
+            for name in CommandName::ALL {
+                let s = name.as_str();
+                if s.starts_with(subcommand.as_str()) {
+                    println!("{s}");
+                }
+            }
+            return;
+        }
+    };
+
+    // Load manifest for completions
+    let tool_name = tool_override.or(config.meta.default_tool.as_deref());
+    let tool_name = match tool_name {
+        Some(n) => n.to_string(),
+        None => return,
+    };
+    let tool = match config.find_tool(&tool_name) {
+        Some(t) => t.clone(),
+        None => return,
+    };
+
+    let manifest = match manifest_store::load_verified(&tool, config, config_path) {
+        Ok(v) => v.manifest,
+        Err(_) => return,
+    };
+
+    // Step 2: suggest subcommand
+    if cmd == CommandName::Suggest {
+        handle_suggest_completion(&manifest, rest, &tool_name, config, config_path);
+        return;
+    }
+
+    // Steps 3-6: flag/positional completion via manifest completions entries
+    let mapping = match manifest.get_command(cmd) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let completions = match &mapping.completions {
+        Some(c) => c,
+        None => return,
+    };
+
+    // Step 3: inspect preceding word
+    let preceding = if rest.len() >= 2 {
+        Some(&rest[rest.len() - 2])
+    } else {
+        None
+    };
+
+    let completion_kind = if let Some(prev) = preceding {
+        if let Some(flag_name) = prev.strip_prefix("--") {
+            // Step 3a: completing value of a flag
+            completions
+                .iter()
+                .find(|c| c.arg == flag_name)
+                .map(|c| &c.kind)
+        } else {
+            // Step 3b: positional completion
+            completions
+                .iter()
+                .find(|c| c.arg == subcommand.as_str())
+                .map(|c| &c.kind)
+        }
+    } else {
+        completions
+            .iter()
+            .find(|c| c.arg == subcommand.as_str())
+            .map(|c| &c.kind)
+    };
+
+    let kind = match completion_kind {
+        Some(k) => k,
+        None => return,
+    };
+
+    // Steps 4-5: check if kind is advertised and call suggest
+    let li_mapping = match manifest.get_command(CommandName::ListIntelligence) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let li_response = match transport::invoke(li_mapping, &[]) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    let intelligence = li_response.get("intelligence").and_then(|i| i.as_array());
+
+    let advertised = intelligence.map_or(false, |intels| {
+        intels
+            .iter()
+            .any(|i| i.get("kind").and_then(|k| k.as_str()) == Some(kind))
+    });
+
+    if !advertised {
+        return;
+    }
+
+    // Collect preceding positional args (excluding partial)
+    let positional_context: Vec<String> = rest
+        .iter()
+        .take(rest.len().saturating_sub(1))
+        .filter(|a| !a.starts_with("--"))
+        .cloned()
+        .collect();
+
+    let suggest_mapping = match manifest.get_command(CommandName::Suggest) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let mut suggest_args = vec![kind.clone()];
+    suggest_args.extend(positional_context);
+
+    let suggestions = match transport::invoke(suggest_mapping, &suggest_args) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    if let Some(suggs) = suggestions.get("suggestions").and_then(|s| s.as_array()) {
+        for s in suggs {
+            if let Some(val) = s.get("value").and_then(|v| v.as_str()) {
+                if val.starts_with(partial) {
+                    println!("{val}");
+                }
+            }
+        }
+    }
+}
+
+fn handle_suggest_completion(
+    manifest: &Manifest,
+    rest: &[String],
+    _tool_name: &str,
+    _config: &AppConfig,
+    _config_path: &Path,
+) {
+    let li_mapping = match manifest.get_command(CommandName::ListIntelligence) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let li_response = match transport::invoke(li_mapping, &[]) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    let intelligence: Vec<crate::protocol::responses::Intelligence> = match serde_json::from_value(
+        li_response.get("intelligence").cloned().unwrap_or_default(),
+    ) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    // Step 2a: completing the kind (first positional)
+    if rest.is_empty() || (rest.len() == 1) {
+        let partial = rest.first().map(|s| s.as_str()).unwrap_or("");
+        for i in &intelligence {
+            if i.kind.starts_with(partial) {
+                println!("{}", i.kind);
+            }
+        }
+        return;
+    }
+
+    // Step 2b: completing Nth argument
+    let kind_str = &rest[0];
+    let arg_index = rest.len() - 2; // 0-indexed after kind
+
+    let intel = match intelligence.iter().find(|i| i.kind == *kind_str) {
+        Some(i) => i,
+        None => return,
+    };
+
+    let intel_arg = match intel.args.get(arg_index) {
+        Some(a) => a,
+        None => return,
+    };
+
+    let arg_kind = match &intel_arg.kind {
+        Some(k) => k,
+        None => return,
+    };
+
+    let advertised = intelligence.iter().any(|i| i.kind == *arg_kind);
+    if !advertised {
+        return;
+    }
+
+    let suggest_mapping = match manifest.get_command(CommandName::Suggest) {
+        Some(m) => m,
+        None => return,
+    };
+
+    let preceding: Vec<String> = rest[1..rest.len().saturating_sub(1)].to_vec();
+    let mut suggest_args = vec![arg_kind.clone()];
+    suggest_args.extend(preceding);
+
+    let partial = rest.last().map(|s| s.as_str()).unwrap_or("");
+
+    let suggestions = match transport::invoke(suggest_mapping, &suggest_args) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    if let Some(suggs) = suggestions.get("suggestions").and_then(|s| s.as_array()) {
+        for s in suggs {
+            if let Some(val) = s.get("value").and_then(|v| v.as_str()) {
+                if val.starts_with(partial) {
+                    println!("{val}");
+                }
+            }
+        }
+    }
+}
+
+fn print_command_list() {
+    for cmd in CommandName::ALL {
+        println!("{}", cmd.as_str());
+    }
+    println!("completion");
+}
+
+pub fn generate_completion_script(
+    shell: &str,
+    config_path: Option<&Path>,
+) -> anyhow::Result<String> {
+    let cfg = config_arg(config_path);
+    match shell {
+        "zsh" => Ok(generate_zsh_script(&cfg)),
+        "bash" => Ok(generate_bash_script(&cfg)),
+        "fish" => Ok(generate_fish_script(&cfg)),
+        other => anyhow::bail!("unsupported shell: {other}"),
+    }
+}
+
+fn config_arg(config_path: Option<&Path>) -> String {
+    config_path
+        .map(|p| format!(" --config {}", shell_quote(&p.to_string_lossy())))
+        .unwrap_or_default()
+}
+
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn generate_zsh_script(cfg: &str) -> String {
+    format!(
+        r#"#compdef attach-meta
+# Generated by attach-meta completion zsh
+
+_attach-meta() {{
+    local -a completions
+    completions=("${{(@f)$(attach-meta{cfg} __complete -- "${{words[@]:1}}" 2>/dev/null)}}")
+    if [[ $#completions -gt 0 ]]; then
+        compadd -a completions
+    fi
+}}
+
+compdef _attach-meta attach-meta
+"#
+    )
+}
+
+fn generate_bash_script(cfg: &str) -> String {
+    format!(
+        r#"# Generated by attach-meta completion bash
+_attach_meta_completions() {{
+    local IFS=$'\n'
+    local completions
+    completions=$(attach-meta{cfg} __complete -- "${{COMP_WORDS[@]:1}}" 2>/dev/null) || return
+    [ -z "$completions" ] && return
+    while IFS= read -r value; do
+        COMPREPLY+=("$value")
+    done <<< "$completions"
+}}
+complete -F _attach_meta_completions attach-meta
+"#
+    )
+}
+
+fn generate_fish_script(cfg: &str) -> String {
+    format!(
+        r#"# Generated by attach-meta completion fish
+function __attach_meta_completions
+    set -l words (commandline -opc)
+    set -l count (count $words)
+    test $count -le 1; and return
+    attach-meta{cfg} __complete -- $words[2..-1] 2>/dev/null
+end
+complete -c attach-meta -f -a "(__attach_meta_completions)"
+"#
+    )
+}
+
+pub fn setup_completions(shell: &str, config_path: Option<&Path>) -> anyhow::Result<()> {
+    let path = completion_path(shell)?;
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let content = generate_completion_script(shell, config_path)?;
+    std::fs::write(&path, content)?;
+    eprintln!("Installed {shell} completions to {}", path.display());
+    maybe_print_hint(shell, &path);
+    Ok(())
+}
+
+fn completion_path(shell: &str) -> anyhow::Result<std::path::PathBuf> {
+    let home =
+        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
+
+    let path = match shell {
+        "bash" => home.join(".local/share/bash-completion/completions/attach-meta"),
+        "zsh" => home.join(".zsh/completions/_attach-meta"),
+        "fish" => dirs::config_dir()
+            .unwrap_or_else(|| home.join(".config"))
+            .join("fish/completions/attach-meta.fish"),
+        other => anyhow::bail!("unsupported shell for --setup-completions: {other}"),
+    };
+    Ok(path)
+}
+
+fn maybe_print_hint(shell: &str, path: &Path) {
+    match shell {
+        "zsh" => {
+            let dir = path.parent().unwrap().display().to_string();
+            eprintln!("Hint: ensure {dir} is in your fpath before compinit, e.g.:");
+            eprintln!("  fpath=({dir} $fpath)");
+            eprintln!("  autoload -Uz compinit && compinit");
+        }
+        "bash" => {
+            eprintln!("Hint: restart your shell or run: source {}", path.display());
+        }
+        _ => {}
+    }
+}

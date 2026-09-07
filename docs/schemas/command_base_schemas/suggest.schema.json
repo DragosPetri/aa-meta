@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/suggest",
+  "description": "Base schema for the suggest command. No named flags; kind and args are positional.",
+  "type": "object",
+  "properties": {}
+}

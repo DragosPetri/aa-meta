@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct AppConfig {
     #[serde(default)]
     pub meta: MetaConfig,
@@ -12,15 +12,20 @@ pub struct AppConfig {
     pub tools: Vec<ToolConfig>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct MetaConfig {
     pub default_tool: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ToolConfig {
     pub name: String,
-    pub binary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest_sha256: Option<String>,
     #[serde(default)]
     pub settings: HashMap<String, String>,
 }
@@ -29,26 +34,35 @@ impl AppConfig {
     pub fn find_tool(&self, name: &str) -> Option<&ToolConfig> {
         self.tools.iter().find(|t| t.name == name)
     }
+
+    pub fn save(&self, path: &Path) -> Result<()> {
+        let content = toml::to_string_pretty(self).context("failed to serialize config")?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        std::fs::write(path, content)
+            .with_context(|| format!("failed to write config to {}", path.display()))
+    }
 }
 
-pub fn load_config(override_path: Option<PathBuf>) -> Result<AppConfig> {
+pub fn load_config(override_path: Option<PathBuf>) -> Result<(AppConfig, PathBuf)> {
     let path = override_path
         .or_else(find_project_config)
-        .unwrap_or_else(user_config_path);
+        .unwrap_or_else(default_project_config_path);
 
-    // TODO: not conviced about silent defaults
     if !path.exists() {
-        return Ok(AppConfig::default());
+        return Ok((AppConfig::default(), path));
     }
 
     let contents = std::fs::read_to_string(&path)
         .with_context(|| format!("failed to read config file: {}", path.display()))?;
 
-    toml::from_str(&contents)
-        .with_context(|| format!("failed to parse config file: {}", path.display()))
+    let config: AppConfig = toml::from_str(&contents)
+        .with_context(|| format!("failed to parse config file: {}", path.display()))?;
+
+    Ok((config, path))
 }
 
-// TODO: not conviced about the walk up part
 /// Walk up from cwd looking for `.attach-meta.toml`.
 fn find_project_config() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
@@ -63,7 +77,13 @@ fn find_project_config() -> Option<PathBuf> {
     }
 }
 
-fn user_config_path() -> PathBuf {
+fn default_project_config_path() -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".attach-meta.toml")
+}
+
+pub fn user_config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("attach-meta")

@@ -1,243 +1,246 @@
 mod cli;
+mod commands;
+mod complete;
 mod config;
-mod discovery;
-mod router;
+mod dynargs;
+mod error;
+mod manifest_store;
+mod prompt;
+mod protocol;
+mod render;
 mod schema;
+mod transport;
 
-use std::path::PathBuf;
-
-use clap::{CommandFactory, Parser};
-use clap_complete::{Shell, generate};
-use cli::{Cli, Command};
+use error::{AttachMetaError, ErrorEnvelope};
+use protocol::manifest::CommandName;
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = cli::parse_phase1();
 
-    if let Some(shell) = cli.setup_completions {
-        if let Err(e) = setup_completions(shell, cli.config.as_deref()) {
-            eprintln!("attach-meta: {e}");
-            std::process::exit(1);
-        }
-        return;
-    }
+    let args = &cli.args;
 
-    let command = cli.command.unwrap_or_else(|| {
+    if args.is_empty() {
         eprintln!("attach-meta: no command provided — try --help");
-        std::process::exit(1);
-    });
-
-    if let Command::Completions { shell } = command {
-        generate(
-            shell,
-            &mut Cli::command(),
-            "attach-meta",
-            &mut std::io::stdout(),
-        );
-        return;
+        std::process::exit(2);
     }
 
-    if let Command::Schema = command {
-        print_schema(cli.json);
-        return;
-    }
+    let command_str = &args[0];
+    let rest = &args[1..];
 
-    if let Command::DoubleComplete {
-        current_word_index,
-        words,
-    } = command
-    {
-        let config = config::load_config(cli.config.clone()).unwrap_or_default();
-        router::run_double_complete(
-            current_word_index,
-            &words,
-            cli.tool,
-            config,
-            cli.verbose,
-        );
-        return;
-    }
-
-    let config = config::load_config(cli.config.clone()).unwrap_or_else(|e| {
-        eprintln!("attach-meta: config error: {e}");
-        std::process::exit(1);
-    });
-    if let Err(e) = router::dispatch(command, cli.tool, cli.workfile, cli.json, config) {
-        eprintln!("attach-meta: {e}");
-        std::process::exit(1);
-    }
-}
-
-fn print_schema(json: bool) {
-    use schema::DiscoveryKey;
-    let version = env!("CARGO_PKG_VERSION");
-    if json {
-        // Skeleton discovery JSON a tool author can copy and fill in.
-        println!("{{");
-        println!("  \"protocol_version\": \"{version}\",");
-        println!("  \"tool_name\": \"<your-tool-name>\",");
-        println!("  \"tool_version\": \"<your-tool-version>\",");
-        println!("  \"commands\": {{");
-        let all = DiscoveryKey::ALL;
-        for (i, dk) in all.iter().enumerate() {
-            let spec = dk.spec();
-            let argv_json: String = spec.argv.iter()
-                .map(|s| format!("\"{s}\""))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let comma = if i < all.len() - 1 { "," } else { "" };
-            println!(
-                "    \"{}\": {{ \"argv\": [{argv_json}], \"supported\": true }}{comma}",
-                spec.key
-            );
+    match command_str.as_str() {
+        "completion" => {
+            handle_completion(rest, cli.config.as_deref());
+            return;
         }
-        println!("  }}");
-        println!("}}");
-    } else {
-        println!("attach-meta protocol {version} — expected discovery commands\n");
-        let key_width = DiscoveryKey::ALL.iter().map(|dk| dk.spec().key.len()).max().unwrap_or(0);
-        for dk in DiscoveryKey::ALL {
-            let spec = dk.spec();
-            let argv = spec.argv.join(" ");
-            println!("  {:<key_width$}  argv: [{argv}]", spec.key);
-            println!("  {:<key_width$}  {}", "", spec.description);
-            println!();
+        "__complete" => {
+            // __complete -- <subcommand> [args...] <partial>
+            let after_dash = if let Some(pos) = rest.iter().position(|a| a == "--") {
+                &rest[pos + 1..]
+            } else {
+                rest
+            };
+            let (mut config, config_path) =
+                config::load_config(cli.config.clone()).unwrap_or_default();
+            complete::run_complete(after_dash, &mut config, &config_path, cli.tool.as_deref());
+            return;
         }
-    }
-}
-
-fn setup_completions(shell: Shell, config_path: Option<&std::path::Path>) -> anyhow::Result<()> {
-    let path = completion_path(shell)?;
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let content = match shell {
-        Shell::Zsh => generate_zsh_script(config_path),
-        Shell::Bash => generate_bash_script(config_path),
-        Shell::Fish => generate_fish_script(config_path),
-        _ => {
-            let mut buf = Vec::new();
-            generate(shell, &mut Cli::command(), "attach-meta", &mut buf);
-            String::from_utf8(buf)?
-        }
-    };
-
-    std::fs::write(&path, content)?;
-    println!("Installed {} completions to {}", shell, path.display());
-    maybe_print_hint(shell, &path);
-
-    Ok(())
-}
-
-/// Single-quote a string for safe shell interpolation.
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
-
-fn config_arg(config_path: Option<&std::path::Path>) -> String {
-    config_path
-        .map(|p| format!(" --config {}", shell_quote(&p.to_string_lossy())))
-        .unwrap_or_default()
-}
-
-fn generate_zsh_script(config_path: Option<&std::path::Path>) -> String {
-    let cfg = config_arg(config_path);
-    format!(
-        r#"#compdef attach-meta
-# Generated by attach-meta --setup-completions zsh
-
-_attach-meta() {{
-    local -a completions vals descs
-    completions=("${{(@f)$(attach-meta{cfg} __complete \
-        --current-word-index $((CURRENT - 1)) \
-        -- "${{words[@]}}" 2>/dev/null)}}")
-    for line in $completions; do
-        vals+=("${{line%%$'\t'*}}")
-        if [[ "$line" == *$'\t'* ]]; then
-            descs+=("${{line#*$'\t'}}")
-        else
-            descs+=('')
-        fi
-    done
-    _describe 'completions' vals descs
-}}
-
-compdef _attach-meta attach-meta
-"#
-    )
-}
-
-fn generate_bash_script(config_path: Option<&std::path::Path>) -> String {
-    let cfg = config_arg(config_path);
-    format!(
-        r#"# Generated by attach-meta --setup-completions bash
-_attach_meta_completions() {{
-    local IFS=$'\n'
-    local completions
-    completions=$(attach-meta{cfg} __complete \
-        --current-word-index "$COMP_CWORD" \
-        -- "${{COMP_WORDS[@]}}" 2>/dev/null) || return
-    [ -z "$completions" ] && return
-    while IFS=$'\t' read -r value _desc; do
-        COMPREPLY+=("$value")
-    done <<< "$completions"
-}}
-complete -F _attach_meta_completions attach-meta
-"#
-    )
-}
-
-fn generate_fish_script(config_path: Option<&std::path::Path>) -> String {
-    let cfg = config_arg(config_path);
-    format!(
-        r#"# Generated by attach-meta --setup-completions fish
-function __attach_meta_completions
-    set -l words (commandline -opc)
-    set -l wcount (count $words)
-    test $wcount -eq 0; and return
-    set -l index (math $wcount - 1)
-    attach-meta{cfg} __complete --current-word-index $index \
-        -- $words 2>/dev/null
-end
-complete -c attach-meta -f -a "(__attach_meta_completions)"
-"#
-    )
-}
-
-fn completion_path(shell: Shell) -> anyhow::Result<PathBuf> {
-    let home =
-        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
-
-    let path = match shell {
-        Shell::Bash => home.join(".local/share/bash-completion/completions/attach-meta"),
-        Shell::Zsh => home.join(".zsh/completions/_attach-meta"),
-        Shell::Fish => dirs::config_dir()
-            .unwrap_or_else(|| home.join(".config"))
-            .join("fish/completions/attach-meta.fish"),
-        Shell::Elvish => dirs::config_dir()
-            .unwrap_or_else(|| home.join(".config"))
-            .join("elvish/lib/attach-meta.elv"),
-        Shell::PowerShell => dirs::document_dir()
-            .unwrap_or_else(|| home.join("Documents"))
-            .join("PowerShell/Completions/attach-meta.ps1"),
-        _ => anyhow::bail!("unsupported shell: {shell}"),
-    };
-
-    Ok(path)
-}
-
-fn maybe_print_hint(shell: Shell, path: &PathBuf) {
-    match shell {
-        Shell::Zsh => {
-            let dir = path.parent().unwrap().display().to_string();
-            println!("Hint: ensure {dir} is in your fpath before compinit, e.g.:");
-            println!("  fpath=({dir} $fpath)");
-            println!("  autoload -Uz compinit && compinit");
-        }
-        Shell::Bash => {
-            println!("Hint: restart your shell or run: source {}", path.display());
+        "init" => {
+            let result = handle_init(rest, &cli);
+            exit_with_result(result, cli.json);
+            return;
         }
         _ => {}
     }
+
+    // All other commands: load config + manifest, validate input, dispatch
+    let cmd = match CommandName::from_str(command_str) {
+        Some(c) => c,
+        None => {
+            eprintln!("attach-meta: unknown command '{command_str}'");
+            std::process::exit(2);
+        }
+    };
+
+    let (mut config, config_path) = match config::load_config(cli.config.clone()) {
+        Ok(c) => c,
+        Err(e) => exit_error(
+            AttachMetaError::InternalError(format!("config error: {e}")),
+            cli.json,
+        ),
+    };
+
+    let tool_name = cli
+        .tool
+        .as_deref()
+        .or(config.meta.default_tool.as_deref())
+        .unwrap_or_else(|| {
+            eprintln!(
+                "attach-meta: no tool specified — use --tool <name> or set default_tool in config"
+            );
+            std::process::exit(2);
+        })
+        .to_string();
+
+    let tool = match config.find_tool(&tool_name) {
+        Some(t) => t.clone(),
+        None => {
+            exit_error(
+                AttachMetaError::ManifestError(format!("tool '{tool_name}' not found in config")),
+                cli.json,
+            );
+        }
+    };
+
+    let verified = match manifest_store::load_verified(&tool, &mut config, &config_path) {
+        Ok(v) => v,
+        Err(e) => {
+            exit_error(e, cli.json);
+        }
+    };
+
+    let manifest = verified.manifest;
+
+    // Check command is in manifest (move/rename have fallback workflows)
+    let has_fallback = matches!(cmd, CommandName::Move | CommandName::Rename);
+    let mapping = match manifest.get_command(cmd) {
+        Some(m) => m.clone(),
+        None if has_fallback => {
+            // Use a synthetic mapping for arg parsing; the handler will use the fallback workflow
+            protocol::manifest::CommandMapping {
+                argv: vec![],
+                args: None,
+                timeout_ms: None,
+                completions: None,
+            }
+        }
+        None => {
+            exit_error(
+                AttachMetaError::ManifestError(format!(
+                    "tool '{tool_name}' does not support '{}'",
+                    cmd
+                )),
+                cli.json,
+            );
+        }
+    };
+
+    // Phase 2: parse args with manifest-augmented flags
+    let parsed = match dynargs::parse_command_args(cmd, &mapping, rest) {
+        Ok(p) => p,
+        Err(e) => {
+            exit_error(e, cli.json);
+        }
+    };
+
+    // Validate input against effective schema
+    let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
+    if let Err(e) = schema::validate_input(&eff_schema, &parsed.flags_json) {
+        exit_error(e, cli.json);
+    }
+
+    // Dispatch
+    let ctx = commands::CommandContext {
+        manifest,
+        tool_binary: tool.binary.unwrap_or_default(),
+        json_output: cli.json,
+        app_config: config,
+        config_path,
+    };
+
+    let result = commands::dispatch(cmd, &parsed.positionals, &parsed.flags_json, &ctx);
+    exit_with_result(result.map(|v| (cmd, v)), cli.json);
+}
+
+fn handle_init(
+    rest: &[String],
+    cli: &cli::Cli,
+) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
+    if rest.is_empty() {
+        return Err(AttachMetaError::InputError(
+            "init requires <analog_attachable> argument".to_string(),
+        ));
+    }
+
+    let binary = &rest[0];
+    let no_interactive = rest.iter().any(|a| a == "--no-interactive");
+
+    let (mut config, config_path) = config::load_config(cli.config.clone())
+        .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
+
+    let prompter: Box<dyn prompt::Prompter> = if no_interactive || !prompt::is_interactive() {
+        Box::new(prompt::ScriptedPrompter::new(vec![]))
+    } else {
+        Box::new(prompt::StdinPrompter)
+    };
+
+    let response = commands::init::run_init(
+        binary,
+        no_interactive,
+        prompter.as_ref(),
+        &mut config,
+        &config_path,
+    )?;
+
+    // Dummy CommandName for rendering — init has its own response
+    Ok((CommandName::ToolConfigGet, response))
+}
+
+fn handle_completion(rest: &[String], config_path: Option<&std::path::Path>) {
+    if rest.is_empty() {
+        eprintln!("Usage: attach-meta completion <bash|zsh|fish>");
+        std::process::exit(2);
+    }
+
+    let shell = &rest[0];
+    match rest.get(1).map(|s| s.as_str()) {
+        Some("--install") | None if rest.len() == 1 => {
+            // Just print the script
+            match complete::generate_completion_script(shell, config_path) {
+                Ok(script) => print!("{script}"),
+                Err(e) => {
+                    eprintln!("attach-meta: {e}");
+                    std::process::exit(2);
+                }
+            }
+        }
+        _ => match complete::generate_completion_script(shell, config_path) {
+            Ok(script) => print!("{script}"),
+            Err(e) => {
+                eprintln!("attach-meta: {e}");
+                std::process::exit(2);
+            }
+        },
+    }
+}
+
+fn exit_with_result(
+    result: std::result::Result<(CommandName, serde_json::Value), AttachMetaError>,
+    json_mode: bool,
+) {
+    match result {
+        Ok((cmd, response)) => {
+            // Check for ok:false in response (protocol error)
+            if response.get("ok").and_then(|v| v.as_bool()) == Some(false) {
+                render::render_response(cmd, &response, json_mode);
+                std::process::exit(1);
+            }
+            render::render_response(cmd, &response, json_mode);
+            std::process::exit(0);
+        }
+        Err(e) => exit_error(e, json_mode),
+    }
+}
+
+fn exit_error(err: AttachMetaError, json_mode: bool) -> ! {
+    let code = err.exit_code();
+    if json_mode {
+        let envelope = ErrorEnvelope::from_error(&err);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&envelope).unwrap_or_default()
+        );
+    } else {
+        eprintln!("attach-meta: {err}");
+    }
+    std::process::exit(code);
 }

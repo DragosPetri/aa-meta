@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "attach-meta/base/read",
+  "description": "Base schema for the read command. No named flags; path is positional.",
+  "type": "object",
+  "properties": {}
+}
