@@ -43,11 +43,12 @@ NOTE: absence of a command entry means unsupported
 NOTE: tool extensions are purely additive — tool authors may only declare optional fields;
       required fields are owned by the protocol (enforced by meta-schema, see below)
 NOTE: every command that routes to a subtool shall re-read the manifest from the path
-      stored in .attach-meta.toml; mtime is compared against the value stored alongside the path:
-        mtime unchanged => parse only, skip validation
-        mtime changed   => full meta-schema + version validation; on success,
-                           update stored mtime in .attach-meta.toml; on failure,
-                           hard error (stored mtime not updated, so next
+      stored in .attach-meta.toml; the SHA-256 of the file contents is compared against the
+      value stored alongside the path:
+        hash unchanged  => parse only, skip validation
+        hash changed    => full meta-schema + version validation; on success,
+                           update stored hash in .attach-meta.toml; on failure,
+                           hard error (stored hash not updated, so next
                            invocation re-validates)
         file missing or unreadable => hard error
 NOTE: after reading the manifest, attach-meta merges the tool's args with the protocol
@@ -70,12 +71,12 @@ Versioning:
     patch mismatch  => always compatible; no action
 
   NOTE: version is checked at init time and re-checked whenever the manifest
-        file's mtime changes (see manifest re-read rules above). A tool update
-        that changes protocol_version but does not cause the manifest file to
-        be rewritten will not be detected — re-running init is required after
-        any tool update that changes protocol_version.
+        file's content hash changes (see manifest re-read rules above). A tool
+        update that changes protocol_version but does not cause the manifest
+        file to be rewritten will not be detected — re-running init is required
+        after any tool update that changes protocol_version.
   TODO: consider a mechanism to detect tool binary updates independently of
-        manifest mtime so that a stale major version cannot go unnoticed
+        manifest content changes so that a stale major version cannot go unnoticed
 
 // attach-meta ships a JSON Schema validator and validates every incoming manifest
 // against this meta-schema at init time.
@@ -309,7 +310,7 @@ attach-meta init <analog_attachable> [--no-interactive] => InitResponse
   3. attach-meta reads manifest from that path
   4. validates manifest against the protocol meta-schema
   5. checks protocol_version major matches attach-meta's major; fails on mismatch
-  6. if all valid => writes binary, manifest path, and manifest mtime to .attach-meta.toml
+  6. if all valid => writes binary, manifest path, and manifest SHA-256 to .attach-meta.toml
   7. (default) runs interactive config session:
        a. requests all configs via tool-config-get
        b. loops through required fields asking for input
