@@ -42,8 +42,16 @@ NOTE: list-intelligence presence in commands declares intelligence support
 NOTE: absence of a command entry means unsupported
 NOTE: tool extensions are purely additive — tool authors may only declare optional fields;
       required fields are owned by the protocol (enforced by meta-schema, see below)
-NOTE: on every invocation, attach-meta reads the manifest from disk and merges the tool's
-      args with the protocol base schema using allOf before validating input
+NOTE: every command that routes to a subtool shall re-read the manifest from the path
+      stored in .attach-meta.toml; mtime is compared against the value stored alongside the path:
+        mtime unchanged => parse only, skip validation
+        mtime changed   => full meta-schema + version validation; on success,
+                           update stored mtime in .attach-meta.toml; on failure,
+                           hard error (stored mtime not updated, so next
+                           invocation re-validates)
+        file missing or unreadable => hard error
+NOTE: after reading the manifest, attach-meta merges the tool's args with the protocol
+      base schema using allOf before validating input
 
 Versioning:
   protocol_version follows semver (MAJOR.MINOR.PATCH)
@@ -286,7 +294,7 @@ attach-meta init <analog_attachable> [--no-interactive] => CommonResponse | Init
   3. attach-meta reads manifest from that path
   4. validates manifest against the protocol meta-schema
   5. checks protocol_version major matches attach-meta's major; fails on mismatch
-  6. if all valid => writes binary + manifest path to .attach-meta.toml
+  6. if all valid => writes binary, manifest path, and manifest mtime to .attach-meta.toml
   7. (default) runs interactive config session:
        a. requests all configs via tool-config-get
        b. loops through required fields asking for input
@@ -299,6 +307,14 @@ InitResponse = CommonResponse & {
   missing_fields: string[],
 }
 
+NOTE: missing_fields contains Config.field_name strings for all required configs
+      that are either absent or set to an invalid value
+NOTE: attach-manifest failure cases — all abort init with an error:
+  - non-zero exit from the binary
+  - empty stdout or stdout that is not a readable path
+  - file at the path contains malformed JSON
+  - JSON fails meta-schema validation (step 4)
+  - protocol_version major mismatch (step 5)
 NOTE: --no-interactive skips step 7 and returns InitResponse instead of CommonResponse
 NOTE: 3rd parties use --no-interactive and drive their own config session via tool-config-get/tool-config-set
 NOTE: the underlying TOOL is permitted to do any pre/post init operations
