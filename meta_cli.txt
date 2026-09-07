@@ -275,7 +275,7 @@ Property: {
   value: PropertyValue
 }
 
-NOTE: value is a JSON-serialisable value whose concrete shape matches the declared type
+NOTE: value is a JSON-serializable value whose concrete shape matches the declared type
 NOTE: PropertyValue is recursive — nesting depth follows the structure declared by type
 
 Node: {
@@ -710,8 +710,6 @@ NOTE: for positional completion, all preceding positional args are forwarded as 
 Open Items
 ───────────────────────────────────────────────────────────────────
 
-TODO: remove create property from meta
-TODO: consider aliasing system
 TODO: chaining validators
-TODO: strongly consider IR for parser x outputter
+TODO: strongly consider IR for parser x writer 
 TODO: Make claude skill to make a tool analog attachable (enabled by providing schemas for all structs)
