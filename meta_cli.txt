@@ -488,9 +488,10 @@ NOTE: the fallback is not atomic — a failure at any step leaves the workfile i
 
 COMMAND:
 ```
-attach-meta rename [ValidIdentifier, ...ValidIdentifier] [value] => CommonResponse
+attach-meta rename [ValidIdentifier, ...ValidIdentifier] --to <value> => CommonResponse
 
 NOTE: shall work for nodes and for properties as there are valid use-cases for renaming a property (e.g. aliases in devicetree)
+NOTE: path identifies the target node or property; --to is the new name
 
 Rename workflow (fallback) when not natively supported by the underlying tool:
 
