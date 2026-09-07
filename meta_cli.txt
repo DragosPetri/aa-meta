@@ -117,6 +117,10 @@ Versioning:
         "args": {
           "$ref": "https://json-schema.org/draft/2020-12/schema"
         },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1
+        },
         "completions": {
           "type": "array",
           "items": {
@@ -194,9 +198,12 @@ attach-meta and a sub-tool:
   Non-zero  the operation could not complete; stdout is undefined
             stderr should contain a human-readable reason
 
-NOTE: attach-meta treats non-zero exit, empty stdout, and malformed JSON
+NOTE: attach-meta treats non-zero exit, empty stdout, malformed JSON, and timeout
       as transport errors and surfaces them in its own error envelope —
       sub-tools are not responsible for these cases
+NOTE: timeout_ms in CommandMapping is the subtool's declared ceiling for that command;
+      if the process does not exit within timeout_ms, attach-meta kills it and raises
+      a transport error; absence of timeout_ms means no timeout is enforced
 NOTE: ok: false in a CommonResponse always corresponds to exit 0 — the
       tool ran and produced a valid response, but the operation failed;
       transport failures and protocol failures are distinct
