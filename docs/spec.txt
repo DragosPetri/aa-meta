@@ -80,73 +80,7 @@ Versioning:
 
 // attach-meta ships a JSON Schema validator and validates every incoming manifest
 // against this meta-schema at init time.
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/manifest",
-  "type": "object",
-  "required": ["protocol_version", "commands"],
-  "additionalProperties": false,
-  "properties": {
-    "protocol_version": {
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$"
-    },
-    "commands": {
-      "type": "object",
-      "propertyNames": {
-        "enum": [
-          "read", "add", "delete", "move", "update", "rename", "alias",
-          "validate", "generate", "build", "deploy",
-          "list-devices", "create-workfile",
-          "tool-config-get", "tool-config-set",
-          "list-intelligence", "suggest"
-        ]
-      },
-      "additionalProperties": { "$ref": "#/$defs/CommandMapping" },
-      "required": [
-        "tool-config-get", "tool-config-set",
-        "create-workfile", "list-devices",
-        "add", "read", "update", "delete",
-        "validate"
-      ]
-    }
-  },
-  "$defs": {
-    "CommandMapping": {
-      "type": "object",
-      "required": ["argv"],
-      "additionalProperties": false,
-      "properties": {
-        "argv": {
-          "type": "array",
-          "items": { "type": "string" },
-          "minItems": 1
-        },
-        "args": {
-          "$ref": "https://json-schema.org/draft/2020-12/schema"
-        },
-        "timeout_ms": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "completions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["arg", "kind"],
-            "additionalProperties": false,
-            "properties": {
-              "arg":  { "type": "string" },
-              "kind": { "type": "string" }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
+// See: docs/schemas/manifest.schema.json
 
 // The protocol owns a base schema per command (hardcoded in attach-meta).
 // At dispatch time, attach-meta merges base + tool args:
@@ -221,11 +155,9 @@ NOTE: ok: false in a CommonResponse always corresponds to exit 0 — the
 Shared Types
 ───────────────────────────────────────────────────────────────────
 
-CommonResponse = {
-  ok:       true | false,
-  message:  string,
-  severity: "info" | "warn" | "error",
-}
+// See: docs/schemas/responses.schema.json
+// Defines: CommonResponse, TYPES (Number, String, Bool, Enum, Array, Tuple),
+//          PropertyValue, Property, Node, ValidIdentifier
 
 NOTE: ok is the only semantic gate — false means the operation failed
 NOTE: severity is a display hint for message, not a second error signal
@@ -233,64 +165,9 @@ NOTE: ok: true  + severity: "warn"  => success with caveats
 NOTE: ok: false + severity: "error" => canonical failure shape
 NOTE: ok: true  + severity: "error" => protocol invariant violation; must never occur
 
-Number: {
-  kind: "number",
-  subtype: "int" | "float",
-}
-
-String: {
-  kind: "string"
-}
-
-Bool: {
-  kind: "bool"
-}
-
-Enum: {
-  kind: "enum",
-  options: { value: string | number, display_string?: string }[]
-}
-
-// Variable-length, all items same type
-Array: {
-  kind: "array",
-  items: TYPES
-}
-
-// Fixed-length, each position independently typed
-Tuple: {
-  kind: "tuple",
-  items: TYPES[]
-}
-
-TYPES = Number | String | Bool | Enum | Array | Tuple;
-// NOTE: TYPES is exclusively used by the read command (Node properties)
-
-PropertyValue = null | string | number | bool | PropertyValue[]
-
-Property: {
-  kind: "property",
-  key: string,
-  type: TYPES,
-  value: PropertyValue
-}
-
-NOTE: value is a JSON-serializable value whose concrete shape matches the declared type
+NOTE: TYPES is exclusively used by the read command (Node properties)
 NOTE: PropertyValue is recursive — nesting depth follows the structure declared by type
-
-Node: {
-  kind: "node",
-  key: string,
-  properties: Property[],
-  children: Node[],
-  alias?: string[]
-}
-
 NOTE: alias is absent when the active tool does not declare alias support in its manifest
-
-ValidIdentifier: string
-// any non-empty string; a node name within its parent scope, or an alias
-// character grammar is not constrained by the protocol — sub-tools define what is valid
 
 NOTE: a sequence of ValidIdentifiers forms a path resolved left-to-right from root
 NOTE: a path may terminate at any Node or at a property of any Node
@@ -318,11 +195,6 @@ attach-meta init <analog_attachable> [--no-interactive] => InitResponse
        c. displays optional fields, asks if any shall be configured
        d. calls tool-config-set for each provided value
 
-InitResponse = CommonResponse & {
-  config_complete: true | false,
-  missing_fields: string[],
-}
-
 NOTE: missing_fields contains Config.field_name strings for all required configs
       that are either absent or set to an invalid value
 NOTE: attach-manifest failure cases — all abort init with an error:
@@ -345,28 +217,13 @@ NOTE: every TOOL needs to provide a mechanism for reading/writing its config fil
 
 COMMAND:
 ```
-ConfigEnum = { options: (string | number)[] }
-
-Config = {
-  field_name: string,
-  category?: string,
-  description: string,
-  type: "numeric" | "string" | "bool" | "path" | ConfigEnum,
-  required: true | false,
-  default: any | null,
-}
-
-NOTE: default must always be present; null means no default exists; null is not a
-      valid default value — configs in this protocol are always paths, strings,
-      numbers, or enums
-
-ToolConfigResponse = CommonResponse & {
-  configs: Config[]
-}
-
 attach-meta tool-config-get => gets all configs for the tool => ToolConfigResponse
 attach-meta tool-config-get [field, ...field] => gets config of field(s) => ToolConfigResponse
 attach-meta tool-config-set [field] [value] => set config field to value => CommonResponse
+
+NOTE: Config.default must always be present; null means no default exists; null is not a
+      valid default value — configs in this protocol are always paths, strings,
+      numbers, or enums
 ```
 
 ───────────────────────────────────────────────────────────────────
@@ -376,10 +233,6 @@ Commands — Workspace
 COMMAND:
 ```
 TODO: consider better naming convention
-
-CreateWorkfileResponse = CommonResponse & {
-  path: string,
-}
 
 attach-meta create-workfile => CreateWorkfileResponse
 
@@ -393,15 +246,6 @@ COMMAND:
 ```
 TODO: consider better naming convention
 
-Device = {
-  tag: string,
-  key: string,
-}
-
-ListDevicesResponse = CommonResponse & {
-  devices: Device[]
-}
-
 attach-meta list-devices => ListDevicesResponse
 
 NOTE: keys need not be unique => the underlying TOOL can decide to have multiple tags for one key by creating different entries => this pushes the responsibility of deciding how to group devices onto the underlying TOOL
@@ -413,11 +257,6 @@ Commands — CRUD
 
 COMMAND:
 ```
-AddResponse = CommonResponse & {
-  key:  string,
-  path: ValidIdentifier[],
-}
-
 attach-meta add (--key <Device.key> | --name <name> | --key <Device.key> --name <name>) [--parent <ValidIdentifier>] => AddResponse
 
 NOTE: at least one of --key or --name must be present; both may be supplied together
@@ -454,12 +293,6 @@ NOTE: --with takes a raw string forwarded as-is to the subtool; the subtool is r
 
 COMMAND:
 ```
-DeletePreview = CommonResponse & {
-  node_count:     number,
-  property_count: number,
-  paths:          ValidIdentifier[][],
-}
-
 attach-meta delete [...ValidIdentifier] [--force] => CommonResponse | DeletePreview
 
 NOTE: leaf nodes and properties are deleted directly without --force
@@ -539,25 +372,19 @@ Commands — Validation
 
 COMMAND:
 ```
-Error = {
-  kind:    "generic",            // discriminator; extended by future kinds
-  path:    ValidIdentifier[],   // empty array means file-level error
-  message: string,
-}
+attach-meta validate [...ValidIdentifier] => ValidationResponse
 
-NOTE: it is the sub-tool's responsibility to translate its internal path
-      representation to the ValidIdentifier[] format
-
-ValidationResponse = {
-  errors:   Error[],
-  warnings: Error[],
-};
-
-NOTE: empty errors means valid; warnings may be present regardless
+NOTE: the sub-tool always validates the full workfile
+NOTE: if a path is provided, attach-meta filters both errors and warnings
+      to those whose path starts with the given ValidIdentifier sequence —
+      filtering is attach-meta's responsibility, not the sub-tool's
+NOTE: file-level errors and warnings (path: []) are never filtered — they pass through regardless of any path argument
 NOTE: ValidationResponse intentionally does not extend CommonResponse —
       errors[] is self-describing (empty = valid); infra-level failures
       (unreadable workfile, parse errors) are expressed as file-level
       errors with path: []; transport failures are handled by non-zero exit
+NOTE: it is the sub-tool's responsibility to translate its internal path
+      representation to the ValidIdentifier[] format
 
 /*
   Possibility of future extension:
@@ -566,14 +393,6 @@ NOTE: ValidationResponse intentionally does not extend CommonResponse —
 
   MetaErrors = Error | NumericLimitError;
 */
-
-attach-meta validate [...ValidIdentifier] => ValidationResponse
-
-NOTE: the sub-tool always validates the full workfile
-NOTE: if a path is provided, attach-meta filters both errors and warnings
-      to those whose path starts with the given ValidIdentifier sequence —
-      filtering is attach-meta's responsibility, not the sub-tool's
-NOTE: file-level errors and warnings (path: []) are never filtered — they pass through regardless of any path argument
 ```
 
 ───────────────────────────────────────────────────────────────────
@@ -614,22 +433,6 @@ Commands — Intelligence
 
 COMMAND:
 ```
-Intelligence = {
-  kind: string,
-  args: IntelligenceArg[],
-}
-
-IntelligenceArg = {
-  name: string,
-  description: string,
-  required: true | false,
-  kind?: string,
-}
-
-ListIntelligenceResponse = CommonResponse & {
-  intelligence: Intelligence[]
-}
-
 attach-meta list-intelligence => ListIntelligenceResponse
 
 NOTE: advertises which suggestion kinds the active tool supports
@@ -640,15 +443,6 @@ NOTE: IntelligenceArg.kind uses the same kind tokens as completions[].kind —
 
 COMMAND:
 ```
-Suggestion = {
-  value: string,
-  display_string?: string,
-}
-
-SuggestResponse = CommonResponse & {
-  suggestions: Suggestion[]
-}
-
 attach-meta suggest <kind> [...args] => SuggestResponse
 
 NOTE: only valid for kinds advertised by list-intelligence
@@ -711,5 +505,5 @@ Open Items
 ───────────────────────────────────────────────────────────────────
 
 TODO: chaining validators
-TODO: strongly consider IR for parser x writer 
+TODO: strongly consider IR for parser x writer
 TODO: Make claude skill to make a tool analog attachable (enabled by providing schemas for all structs)
