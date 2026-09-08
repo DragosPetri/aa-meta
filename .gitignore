@@ -1,1 +1,3 @@
 /target
+/.analog-attach
+.attach-meta.toml

@@ -1,6 +1,0 @@
-[meta]
-default_tool = "attach-pickle"
-
-[[tools]]
-name   = "attach-pickle"
-binary = "attach-pickle"

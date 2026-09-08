@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::config::AppConfig;
+use crate::dynargs;
 use crate::manifest_store;
 use crate::protocol::manifest::{CommandName, Manifest};
 use crate::transport;
@@ -58,12 +59,35 @@ pub fn run_complete(
         return;
     }
 
-    // Steps 3-6: flag/positional completion via manifest completions entries
     let mapping = match manifest.get_command(cmd) {
         Some(m) => m,
         None => return,
     };
 
+    // Flag-name completion: offer flags unless we're completing a flag's value
+    let preceding_flag = rest.len() >= 2
+        && rest[rest.len() - 2].starts_with("--")
+        && !dynargs::is_bool_flag_in_schema(
+            rest[rest.len() - 2].trim_start_matches('-'),
+            cmd,
+            mapping.args.as_ref(),
+        );
+    let wants_flag = !preceding_flag && (partial.is_empty() || partial.starts_with("--"));
+    if wants_flag {
+        let flag_prefix = partial.strip_prefix("--").unwrap_or("");
+        let already_used: Vec<&str> = rest
+            .iter()
+            .filter_map(|a| a.strip_prefix("--"))
+            .collect();
+        let all_flags = dynargs::collect_flag_names(cmd, mapping.args.as_ref());
+        for flag in &all_flags {
+            if flag.starts_with(flag_prefix) && !already_used.contains(&flag.as_str()) {
+                println!("--{flag}");
+            }
+        }
+    }
+
+    // Steps 3-6: value completion via manifest completions entries
     let completions = match &mapping.completions {
         Some(c) => c,
         None => return,

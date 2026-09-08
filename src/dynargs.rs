@@ -11,6 +11,24 @@ pub struct ParsedInput {
     pub forwarded_argv: Vec<String>,
 }
 
+pub fn collect_flag_names(cmd: CommandName, tool_args: Option<&Value>) -> Vec<String> {
+    let base = base_schema::base_schema(cmd);
+    let mut flags: Vec<String> = Vec::new();
+    if let Some(props) = base.get("properties").and_then(|p| p.as_object()) {
+        flags.extend(props.keys().cloned());
+    }
+    if let Some(ta) = tool_args {
+        if let Some(props) = ta.get("properties").and_then(|p| p.as_object()) {
+            for key in props.keys() {
+                if !flags.contains(key) {
+                    flags.push(key.clone());
+                }
+            }
+        }
+    }
+    flags
+}
+
 pub fn parse_command_args(
     cmd: CommandName,
     mapping: &CommandMapping,
@@ -23,19 +41,18 @@ pub fn parse_command_args(
     let mut positionals: Vec<String> = Vec::new();
     let mut forwarded_argv: Vec<String> = mapping.argv.clone();
 
-    let mut known_flags: Vec<String> = Vec::new();
-    if let Some(props) = base.get("properties").and_then(|p| p.as_object()) {
-        known_flags.extend(props.keys().cloned());
-    }
+    let known_flags = collect_flag_names(cmd, tool_args);
+    // Check for collisions between base and tool args
     if let Some(ta) = tool_args {
-        if let Some(props) = ta.get("properties").and_then(|p| p.as_object()) {
-            for key in props.keys() {
-                if known_flags.contains(key) {
-                    return Err(AttachMetaError::ManifestError(format!(
-                        "tool arg '--{key}' collides with a protocol flag"
-                    )));
+        if let Some(base_props) = base.get("properties").and_then(|p| p.as_object()) {
+            if let Some(tool_props) = ta.get("properties").and_then(|p| p.as_object()) {
+                for key in tool_props.keys() {
+                    if base_props.contains_key(key) {
+                        return Err(AttachMetaError::ManifestError(format!(
+                            "tool arg '--{key}' collides with a protocol flag"
+                        )));
+                    }
                 }
-                known_flags.push(key.clone());
             }
         }
     }
@@ -77,6 +94,11 @@ pub fn parse_command_args(
         positionals,
         forwarded_argv,
     })
+}
+
+pub fn is_bool_flag_in_schema(name: &str, cmd: CommandName, tool_args: Option<&Value>) -> bool {
+    let base = base_schema::base_schema(cmd);
+    is_boolean_flag(name, &Some(base), tool_args)
 }
 
 fn is_boolean_flag(name: &str, base: &Option<Value>, tool_args: Option<&Value>) -> bool {

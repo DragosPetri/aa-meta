@@ -771,6 +771,125 @@ fn complete_no_subcommand_returns_command_list() {
     assert!(lines.contains("completion"));
 }
 
+#[test]
+fn complete_subcommand_suggests_flags() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    // Without trailing empty string (bare __complete -- add)
+    let out = env.run_cmd(&["__complete", "--", "add"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("--key"), "missing --key: {lines}");
+    assert!(lines.contains("--name"), "missing --name: {lines}");
+    assert!(lines.contains("--parent"), "missing --parent: {lines}");
+    assert!(lines.contains("--bus_id"), "missing --bus_id: {lines}");
+
+    // With trailing empty string (what zsh sends for add <TAB>)
+    let out = env.run_cmd(&["__complete", "--", "add", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("--key"), "zsh-style missing --key: {lines}");
+    assert!(lines.contains("--name"), "zsh-style missing --name: {lines}");
+    assert!(lines.contains("--parent"), "zsh-style missing --parent: {lines}");
+    assert!(lines.contains("--bus_id"), "zsh-style missing --bus_id: {lines}");
+}
+
+#[test]
+fn complete_partial_flag_filters() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--k"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("--key"), "missing --key: {lines}");
+    assert!(!lines.contains("--bus_id"), "should not contain --bus_id: {lines}");
+    assert!(!lines.contains("--name"), "should not contain --name: {lines}");
+}
+
+#[test]
+fn complete_excludes_already_used_flags() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--key", "val", "--"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(!lines.contains("--key"), "should not re-suggest --key: {lines}");
+    assert!(lines.contains("--name"), "missing --name: {lines}");
+    assert!(lines.contains("--bus_id"), "missing --bus_id: {lines}");
+}
+
+#[test]
+fn complete_positional_value_via_suggest() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    // Default manifest has completions: [{"arg": "add", "kind": "device-key"}]
+    // so positional completion for add should call suggest device-key
+    let out = env.run_cmd(&["__complete", "--", "add", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("ad7124"), "missing ad7124: {lines}");
+    assert!(lines.contains("ad5940"), "missing ad5940: {lines}");
+}
+
+#[test]
+fn complete_positional_value_filters_by_prefix() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "ad71"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("ad7124"), "missing ad7124: {lines}");
+    assert!(!lines.contains("ad5940"), "ad5940 should be filtered: {lines}");
+}
+
+#[test]
+fn complete_flag_value_via_suggest() {
+    let env = TestEnv::new();
+    // Manifest with flag-value completion: arg "key" -> kind "device-key"
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "key", "kind": "device-key" }}] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "list-intelligence": {{ "argv": ["{bin}", "list-intelligence"] }},
+    "suggest":         {{ "argv": ["{bin}", "suggest"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--key", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("ad7124"), "missing ad7124: {lines}");
+    assert!(lines.contains("ad5940"), "missing ad5940: {lines}");
+}
+
 // ─── Move/rename fallback ───
 
 #[test]
