@@ -1,5 +1,5 @@
 use anyhow::Result;
-use jsonschema::{options, Validator};
+use jsonschema::{Validator, options};
 use serde_json::Value;
 
 use crate::error::AttachMetaError;

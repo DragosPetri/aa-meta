@@ -302,16 +302,18 @@ mod tests {
     #[test]
     fn schema_sync_command_names_match_property_names_enum() {
         let schema = manifest_schema();
-        let allowed: std::collections::BTreeSet<String> = schema["properties"]["commands"]
-            ["propertyNames"]["enum"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_str().unwrap().to_string())
-            .collect();
+        let allowed: std::collections::BTreeSet<String> =
+            schema["properties"]["commands"]["propertyNames"]["enum"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap().to_string())
+                .collect();
 
-        let rust_all: std::collections::BTreeSet<String> =
-            CommandName::ALL.iter().map(|c| c.as_str().to_string()).collect();
+        let rust_all: std::collections::BTreeSet<String> = CommandName::ALL
+            .iter()
+            .map(|c| c.as_str().to_string())
+            .collect();
 
         let in_schema_not_rust: Vec<_> = allowed.difference(&rust_all).collect();
         let in_rust_not_schema: Vec<_> = rust_all.difference(&allowed).collect();
@@ -326,16 +328,18 @@ mod tests {
     #[test]
     fn schema_sync_required_commands_match() {
         let schema = manifest_schema();
-        let required: std::collections::BTreeSet<String> = schema["properties"]["commands"]
-            ["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v.as_str().unwrap().to_string())
-            .collect();
+        let required: std::collections::BTreeSet<String> =
+            schema["properties"]["commands"]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap().to_string())
+                .collect();
 
-        let rust_required: std::collections::BTreeSet<String> =
-            CommandName::REQUIRED.iter().map(|c| c.as_str().to_string()).collect();
+        let rust_required: std::collections::BTreeSet<String> = CommandName::REQUIRED
+            .iter()
+            .map(|c| c.as_str().to_string())
+            .collect();
 
         let in_schema_not_rust: Vec<_> = required.difference(&rust_required).collect();
         let in_rust_not_schema: Vec<_> = rust_required.difference(&required).collect();

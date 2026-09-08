@@ -253,8 +253,14 @@ fn init_no_interactive_writes_toml() {
     assert!(out.status.success(), "stderr: {}", stderr(&out));
 
     let toml_content = fs::read_to_string(&env.config_path).unwrap();
-    assert!(toml_content.contains("manifest_path"), "toml: {toml_content}");
-    assert!(toml_content.contains("manifest_sha256"), "toml: {toml_content}");
+    assert!(
+        toml_content.contains("manifest_path"),
+        "toml: {toml_content}"
+    );
+    assert!(
+        toml_content.contains("manifest_sha256"),
+        "toml: {toml_content}"
+    );
     assert!(toml_content.contains("fake-tool"), "toml: {toml_content}");
 }
 
@@ -287,7 +293,8 @@ fn init_returns_init_response_json() {
 #[test]
 fn init_rejects_major_mismatch() {
     let env = TestEnv::new();
-    env.write_manifest(r#"{
+    env.write_manifest(
+        r#"{
         "protocol_version": "99.0.0",
         "commands": {
             "tool-config-get": { "argv": ["t", "cg"] },
@@ -300,7 +307,8 @@ fn init_rejects_major_mismatch() {
             "delete": { "argv": ["t", "del"] },
             "validate": { "argv": ["t", "v"] }
         }
-    }"#);
+    }"#,
+    );
     env.write_default_tool();
 
     let out = env.run_init();
@@ -314,7 +322,8 @@ fn init_rejects_major_mismatch() {
 fn init_rejects_missing_required_command() {
     let env = TestEnv::new();
     // Missing "add" command
-    env.write_manifest(r#"{
+    env.write_manifest(
+        r#"{
         "protocol_version": "1.0.0",
         "commands": {
             "tool-config-get": { "argv": ["t", "cg"] },
@@ -326,7 +335,8 @@ fn init_rejects_missing_required_command() {
             "delete": { "argv": ["t", "del"] },
             "validate": { "argv": ["t", "v"] }
         }
-    }"#);
+    }"#,
+    );
     env.write_default_tool();
 
     let out = env.run_init();
@@ -356,7 +366,10 @@ fn init_rejects_required_in_tool_args() {
     let out = env.run_init();
     assert!(!out.status.success());
     let err = stderr(&out);
-    assert!(err.contains("required"), "expected 'required' error, got: {err}");
+    assert!(
+        err.contains("required"),
+        "expected 'required' error, got: {err}"
+    );
 }
 
 // ─── Hash caching ───
@@ -382,7 +395,10 @@ fn hash_change_triggers_revalidation() {
 
     let toml_content = fs::read_to_string(&env.config_path).unwrap();
     let new_hash = sha256_file(&env.manifest_path);
-    assert!(toml_content.contains(&new_hash), "hash not updated in config");
+    assert!(
+        toml_content.contains(&new_hash),
+        "hash not updated in config"
+    );
 }
 
 // ─── Input validation ───
@@ -410,7 +426,12 @@ fn add_with_key_succeeds() {
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["add", "--key", "my_device"]);
-    assert!(out.status.success(), "stdout: {} stderr: {}", stdout(&out), stderr(&out));
+    assert!(
+        out.status.success(),
+        "stdout: {} stderr: {}",
+        stdout(&out),
+        stderr(&out)
+    );
     let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
     assert_eq!(response["ok"], true);
     assert_eq!(response["key"], "new_node");
@@ -427,7 +448,10 @@ fn add_with_tool_declared_flag() {
     assert!(out.status.success(), "stderr: {}", stderr(&out));
 
     let log = env.invocation_log();
-    assert!(log.contains("--bus_id"), "tool should receive --bus_id, log: {log}");
+    assert!(
+        log.contains("--bus_id"),
+        "tool should receive --bus_id, log: {log}"
+    );
     assert!(log.contains("spi0"), "tool should receive spi0, log: {log}");
 }
 
@@ -494,7 +518,10 @@ fn delete_without_force_returns_preview() {
     let out = env.run_json(&["delete", "some_node"]);
     assert!(out.status.success(), "stderr: {}", stderr(&out));
     let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
-    assert!(response.get("node_count").is_some(), "expected DeletePreview");
+    assert!(
+        response.get("node_count").is_some(),
+        "expected DeletePreview"
+    );
 }
 
 #[test]
@@ -567,12 +594,14 @@ fn transport_error_nonzero_exit() {
     let env = TestEnv::new();
     env.write_default_manifest();
     // Tool that returns non-zero for "generate"
-    env.write_tool(r#"
+    env.write_tool(
+        r#"
     generate)
         echo "something went wrong" >&2
         exit 1
         ;;
-"#);
+"#,
+    );
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["generate"]);
@@ -587,11 +616,13 @@ fn transport_error_nonzero_exit() {
 fn transport_error_empty_stdout() {
     let env = TestEnv::new();
     env.write_default_manifest();
-    env.write_tool(r#"
+    env.write_tool(
+        r#"
     build)
         exit 0
         ;;
-"#);
+"#,
+    );
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["build"]);
@@ -605,12 +636,14 @@ fn transport_error_empty_stdout() {
 fn transport_error_malformed_json() {
     let env = TestEnv::new();
     env.write_default_manifest();
-    env.write_tool(r#"
+    env.write_tool(
+        r#"
     deploy)
         echo "not json at all"
         exit 0
         ;;
-"#);
+"#,
+    );
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["deploy"]);
@@ -642,13 +675,15 @@ fn transport_timeout() {
 }}"#,
         bin = env.tool_path.display()
     ));
-    env.write_tool(r#"
+    env.write_tool(
+        r#"
     generate)
         sleep 5
         echo '{"ok":true,"message":"done","severity":"info"}'
         exit 0
         ;;
-"#);
+"#,
+    );
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["generate"]);
@@ -664,12 +699,14 @@ fn transport_timeout() {
 fn protocol_error_ok_false() {
     let env = TestEnv::new();
     env.write_default_manifest();
-    env.write_tool(r#"
+    env.write_tool(
+        r#"
     generate)
         echo '{"ok":false,"message":"generation failed","severity":"error"}'
         exit 0
         ;;
-"#);
+"#,
+    );
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["generate"]);
@@ -761,7 +798,12 @@ fn move_fallback_invokes_read_add_update_delete() {
     env.write_config_pointing_to_tool();
 
     let out = env.run_json(&["move", "my_node", "--to", "new_parent"]);
-    assert!(out.status.success(), "stdout: {} stderr: {}", stdout(&out), stderr(&out));
+    assert!(
+        out.status.success(),
+        "stdout: {} stderr: {}",
+        stdout(&out),
+        stderr(&out)
+    );
 
     let log = env.invocation_log();
     // Should see read, then add, then update, then delete --force

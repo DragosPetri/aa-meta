@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::config::{AppConfig, ToolConfig};
 use crate::error::AttachMetaError;
 use crate::manifest_store;
-use crate::prompt::{format_config_prompt, Prompter};
+use crate::prompt::{Prompter, format_config_prompt};
 use crate::protocol::manifest::CommandName;
 use crate::protocol::responses::{Config, InitResponse, Severity, ToolConfigResponse};
 use crate::protocol::version;

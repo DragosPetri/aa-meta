@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::manifest::CommandName;
 
@@ -10,23 +10,57 @@ macro_rules! base_schema_file {
 
 pub fn base_schema(cmd: CommandName) -> Value {
     match cmd {
-        CommandName::Add => base_schema_file!("../../docs/schemas/command_base_schemas/add.schema.json"),
-        CommandName::Read => base_schema_file!("../../docs/schemas/command_base_schemas/read.schema.json"),
-        CommandName::Update => base_schema_file!("../../docs/schemas/command_base_schemas/update.schema.json"),
-        CommandName::Delete => base_schema_file!("../../docs/schemas/command_base_schemas/delete.schema.json"),
-        CommandName::Move => base_schema_file!("../../docs/schemas/command_base_schemas/move.schema.json"),
-        CommandName::Rename => base_schema_file!("../../docs/schemas/command_base_schemas/rename.schema.json"),
-        CommandName::Alias => base_schema_file!("../../docs/schemas/command_base_schemas/alias.schema.json"),
-        CommandName::Validate => base_schema_file!("../../docs/schemas/command_base_schemas/validate.schema.json"),
-        CommandName::Suggest => base_schema_file!("../../docs/schemas/command_base_schemas/suggest.schema.json"),
-        CommandName::ToolConfigGet => base_schema_file!("../../docs/schemas/command_base_schemas/tool-config-get.schema.json"),
-        CommandName::ToolConfigSet => base_schema_file!("../../docs/schemas/command_base_schemas/tool-config-set.schema.json"),
-        CommandName::CreateWorkfile => base_schema_file!("../../docs/schemas/command_base_schemas/create-workfile.schema.json"),
-        CommandName::ListDevices => base_schema_file!("../../docs/schemas/command_base_schemas/list-devices.schema.json"),
-        CommandName::Generate => base_schema_file!("../../docs/schemas/command_base_schemas/generate.schema.json"),
-        CommandName::Build => base_schema_file!("../../docs/schemas/command_base_schemas/build.schema.json"),
-        CommandName::Deploy => base_schema_file!("../../docs/schemas/command_base_schemas/deploy.schema.json"),
-        CommandName::ListIntelligence => base_schema_file!("../../docs/schemas/command_base_schemas/list-intelligence.schema.json"),
+        CommandName::Add => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/add.schema.json")
+        }
+        CommandName::Read => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/read.schema.json")
+        }
+        CommandName::Update => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/update.schema.json")
+        }
+        CommandName::Delete => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/delete.schema.json")
+        }
+        CommandName::Move => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/move.schema.json")
+        }
+        CommandName::Rename => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/rename.schema.json")
+        }
+        CommandName::Alias => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/alias.schema.json")
+        }
+        CommandName::Validate => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/validate.schema.json")
+        }
+        CommandName::Suggest => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/suggest.schema.json")
+        }
+        CommandName::ToolConfigGet => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/tool-config-get.schema.json")
+        }
+        CommandName::ToolConfigSet => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/tool-config-set.schema.json")
+        }
+        CommandName::CreateWorkfile => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/create-workfile.schema.json")
+        }
+        CommandName::ListDevices => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/list-devices.schema.json")
+        }
+        CommandName::Generate => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/generate.schema.json")
+        }
+        CommandName::Build => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/build.schema.json")
+        }
+        CommandName::Deploy => {
+            base_schema_file!("../../docs/schemas/command_base_schemas/deploy.schema.json")
+        }
+        CommandName::ListIntelligence => base_schema_file!(
+            "../../docs/schemas/command_base_schemas/list-intelligence.schema.json"
+        ),
     }
 }
 

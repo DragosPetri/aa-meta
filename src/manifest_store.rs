@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 use crate::config::{AppConfig, ToolConfig};
 use crate::error::AttachMetaError;
-use crate::protocol::manifest::{parse_manifest, Manifest};
+use crate::protocol::manifest::{Manifest, parse_manifest};
 use crate::protocol::version;
 use crate::schema;
 
