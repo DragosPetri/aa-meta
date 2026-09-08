@@ -22,9 +22,11 @@ pub fn invoke(
     cmd.stderr(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
 
-    let child = cmd
-        .spawn()
-        .map_err(|e| AttachMetaError::TransportError(format!("failed to spawn '{binary}': {e}")))?;
+    let child = cmd.spawn().map_err(|e| {
+        AttachMetaError::TransportError(format!(
+            "could not run '{binary}': {e} — is it installed and on your PATH?"
+        ))
+    })?;
 
     let output = if let Some(timeout_ms) = mapping.timeout_ms {
         wait_with_timeout(child, Duration::from_millis(timeout_ms), binary)?
@@ -34,23 +36,32 @@ pub fn invoke(
         })?
     };
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr_hint = if stderr.trim().is_empty() {
+        String::new()
+    } else {
+        format!("\n  stderr: {}", stderr.trim())
+    };
+
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         let code = output.status.code().unwrap_or(-1);
         return Err(AttachMetaError::TransportError(format!(
-            "'{binary}' exited with code {code}: {stderr}"
+            "'{binary}' exited with code {code}{stderr_hint}"
         )));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if stdout.trim().is_empty() {
         return Err(AttachMetaError::TransportError(format!(
-            "'{binary}' produced empty stdout"
+            "'{binary}' returned no output — \
+            verify '{binary}' handles this command and produces JSON on stdout{stderr_hint}"
         )));
     }
 
     serde_json::from_str(stdout.trim()).map_err(|e| {
-        AttachMetaError::TransportError(format!("'{binary}' produced invalid JSON: {e}"))
+        AttachMetaError::TransportError(format!(
+            "'{binary}' returned invalid JSON: {e}{stderr_hint}"
+        ))
     })
 }
 

@@ -629,7 +629,7 @@ fn transport_error_empty_stdout() {
     assert!(!out.status.success());
     assert_eq!(out.status.code(), Some(2));
     let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
-    assert!(response["error"].as_str().unwrap().contains("empty"));
+    assert!(response["error"].as_str().unwrap().contains("no output"));
 }
 
 #[test]
