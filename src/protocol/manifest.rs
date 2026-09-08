@@ -137,8 +137,6 @@ impl Manifest {
     }
 }
 
-static MANIFEST_SCHEMA: &str = include_str!("../../docs/schemas/manifest.schema.json");
-
 pub fn parse_manifest(json: &str) -> anyhow::Result<Manifest> {
     serde_json::from_str(json).map_err(|e| anyhow::anyhow!("failed to parse manifest: {e}"))
 }
@@ -146,6 +144,8 @@ pub fn parse_manifest(json: &str) -> anyhow::Result<Manifest> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static MANIFEST_SCHEMA: &str = include_str!("../../docs/schemas/manifest.schema.json");
 
     #[test]
     fn command_name_roundtrip() {
@@ -224,78 +224,88 @@ mod tests {
         serde_json::from_str(MANIFEST_SCHEMA).unwrap()
     }
 
-    fn schema_props(obj: &serde_json::Value) -> std::collections::BTreeSet<String> {
-        obj.get("properties")
-            .and_then(|p| p.as_object())
-            .map(|m| m.keys().cloned().collect())
-            .unwrap_or_default()
+    fn manifest_validator(pointer: Option<&str>) -> jsonschema::Validator {
+        let root = manifest_schema();
+        let subschema = match pointer {
+            Some(p) => root
+                .pointer(p)
+                .unwrap_or_else(|| panic!("no schema at pointer '{p}'"))
+                .clone(),
+            None => serde_json::json!({ "$ref": "attach-meta/manifest" }),
+        };
+        jsonschema::options()
+            .with_draft(jsonschema::Draft::Draft202012)
+            .with_resource(
+                "attach-meta/manifest",
+                jsonschema::Resource::from_contents(root).unwrap(),
+            )
+            .build(&subschema)
+            .unwrap_or_else(|e| panic!("failed to compile manifest schema: {e}"))
     }
 
-    fn serialized_fields(val: &serde_json::Value) -> std::collections::BTreeSet<String> {
-        val.as_object().unwrap().keys().cloned().collect()
+    fn assert_manifest_valid(pointer: Option<&str>, instance: &impl Serialize) {
+        let validator = manifest_validator(pointer);
+        let value = serde_json::to_value(instance).unwrap();
+        let errors: Vec<_> = validator
+            .iter_errors(&value)
+            .map(|e| format!("  - {e}"))
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "Manifest schema validation failed{}:\n{}",
+            pointer.map(|p| format!(" at {p}")).unwrap_or_default(),
+            errors.join("\n"),
+        );
     }
 
     #[test]
     fn schema_sync_manifest_top_level() {
-        let schema = manifest_schema();
-        let expected = schema_props(&schema);
-        let instance = serde_json::to_value(&Manifest {
-            protocol_version: "1.0.0".into(),
-            commands: Default::default(),
-        })
-        .unwrap();
-        let actual = serialized_fields(&instance);
-
-        let missing: Vec<_> = expected.difference(&actual).collect();
-        let extra: Vec<_> = actual.difference(&expected).collect();
-        assert!(
-            missing.is_empty() && extra.is_empty(),
-            "Manifest top-level drift:\n  in schema not struct: {missing:?}\n  in struct not schema: {extra:?}"
+        assert_manifest_valid(
+            None,
+            &Manifest {
+                protocol_version: "1.0.0".into(),
+                commands: CommandName::REQUIRED
+                    .iter()
+                    .map(|c| {
+                        (
+                            c.as_str().to_string(),
+                            CommandMapping {
+                                argv: vec!["t".into()],
+                                args: None,
+                                timeout_ms: None,
+                                completions: None,
+                            },
+                        )
+                    })
+                    .collect(),
+            },
         );
     }
 
     #[test]
     fn schema_sync_command_mapping() {
-        let schema = manifest_schema();
-        let cm_def = &schema["$defs"]["CommandMapping"];
-        let expected = schema_props(cm_def);
-
-        // Serialize with all Optional fields present so they appear in the output
-        let instance = serde_json::to_value(&CommandMapping {
-            argv: vec!["t".into()],
-            args: Some(serde_json::json!({})),
-            timeout_ms: Some(1),
-            completions: Some(vec![]),
-        })
-        .unwrap();
-        let actual = serialized_fields(&instance);
-
-        let missing: Vec<_> = expected.difference(&actual).collect();
-        let extra: Vec<_> = actual.difference(&expected).collect();
-        assert!(
-            missing.is_empty() && extra.is_empty(),
-            "CommandMapping drift:\n  in schema not struct: {missing:?}\n  in struct not schema: {extra:?}"
+        assert_manifest_valid(
+            Some("/$defs/CommandMapping"),
+            &CommandMapping {
+                argv: vec!["t".into()],
+                args: Some(serde_json::json!({})),
+                timeout_ms: Some(1),
+                completions: Some(vec![CompletionHint {
+                    arg: "a".into(),
+                    kind: "k".into(),
+                }]),
+            },
         );
     }
 
     #[test]
     fn schema_sync_completion_hint() {
-        let schema = manifest_schema();
-        let hint_schema = &schema["$defs"]["CommandMapping"]["properties"]["completions"]["items"];
-        let expected = schema_props(hint_schema);
-
-        let instance = serde_json::to_value(&CompletionHint {
-            arg: "a".into(),
-            kind: "k".into(),
-        })
-        .unwrap();
-        let actual = serialized_fields(&instance);
-
-        let missing: Vec<_> = expected.difference(&actual).collect();
-        let extra: Vec<_> = actual.difference(&expected).collect();
-        assert!(
-            missing.is_empty() && extra.is_empty(),
-            "CompletionHint drift:\n  in schema not struct: {missing:?}\n  in struct not schema: {extra:?}"
+        assert_manifest_valid(
+            Some("/$defs/CommandMapping/properties/completions/items"),
+            &CompletionHint {
+                arg: "a".into(),
+                kind: "k".into(),
+            },
         );
     }
 

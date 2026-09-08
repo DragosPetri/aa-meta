@@ -232,11 +232,11 @@ pub struct SuggestResponse {
     pub suggestions: Vec<Suggestion>,
 }
 
-static RESPONSES_SCHEMA: &str = include_str!("../../docs/schemas/responses.schema.json");
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static RESPONSES_SCHEMA: &str = include_str!("../../docs/schemas/responses.schema.json");
 
     #[test]
     fn common_response_roundtrip() {
@@ -335,248 +335,349 @@ mod tests {
     //
     // These tests detect drift between the Rust structs and
     // docs/schemas/responses.schema.json. Each one builds a representative
-    // instance of the struct, serializes it, and checks that every field
-    // declared in the schema's $def is present (and vice-versa).
+    // instance, serializes it, and validates against the matching $def.
+    // Uses the same jsonschema crate the rest of the codebase depends on,
+    // so type mismatches and extra/missing fields are both caught.
 
-    fn schema_defs() -> serde_json::Map<String, serde_json::Value> {
+    fn def_validator(def_name: &str) -> jsonschema::Validator {
         let root: serde_json::Value = serde_json::from_str(RESPONSES_SCHEMA).unwrap();
-        root.get("$defs")
-            .unwrap()
-            .as_object()
-            .unwrap()
-            .clone()
+        let ref_schema = serde_json::json!({
+            "$ref": format!("attach-meta/responses#/$defs/{def_name}")
+        });
+        jsonschema::options()
+            .with_draft(jsonschema::Draft::Draft202012)
+            .with_resource(
+                "attach-meta/responses",
+                jsonschema::Resource::from_contents(root).unwrap(),
+            )
+            .build(&ref_schema)
+            .unwrap_or_else(|e| panic!("failed to compile schema for '{def_name}': {e}"))
     }
 
-    /// Collect all property names from a $def, resolving one level of
-    /// `allOf` → `$ref` → `#/$defs/<Name>` into the parent's properties.
-    fn schema_fields(defs: &serde_json::Map<String, serde_json::Value>, def_name: &str) -> std::collections::BTreeSet<String> {
-        let def = &defs[def_name];
-        let mut fields = std::collections::BTreeSet::new();
-
-        // Directly declared properties
-        if let Some(props) = def.get("properties").and_then(|p| p.as_object()) {
-            fields.extend(props.keys().cloned());
-        }
-
-        // allOf → $ref to other $defs (one level)
-        if let Some(all_of) = def.get("allOf").and_then(|a| a.as_array()) {
-            for entry in all_of {
-                if let Some(r) = entry.get("$ref").and_then(|r| r.as_str()) {
-                    if let Some(ref_name) = r.strip_prefix("#/$defs/") {
-                        fields.extend(schema_fields(defs, ref_name));
-                    }
-                }
-            }
-        }
-
-        fields
+    fn schema_union_branch_count(def_name: &str) -> usize {
+        let root: serde_json::Value = serde_json::from_str(RESPONSES_SCHEMA).unwrap();
+        let def = root
+            .pointer(&format!("/$defs/{def_name}"))
+            .unwrap_or_else(|| panic!("no $def named '{def_name}'"));
+        def.get("anyOf")
+            .or_else(|| def.get("oneOf"))
+            .and_then(|v| v.as_array())
+            .unwrap_or_else(|| panic!("'{def_name}' has no anyOf/oneOf"))
+            .len()
     }
 
-    /// Collect the field names a Rust struct actually serializes.
-    fn serialized_fields(value: &serde_json::Value) -> std::collections::BTreeSet<String> {
-        value
-            .as_object()
-            .unwrap()
-            .keys()
-            .cloned()
-            .collect()
-    }
-
-    macro_rules! assert_fields_match {
-        ($def_name:expr, $instance:expr) => {{
-            let defs = schema_defs();
-            let expected = schema_fields(&defs, $def_name);
-            let actual = serialized_fields(&serde_json::to_value(&$instance).unwrap());
-
-            let missing_from_rust: Vec<_> = expected.difference(&actual).collect();
-            let extra_in_rust: Vec<_> = actual.difference(&expected).collect();
-
-            assert!(
-                missing_from_rust.is_empty() && extra_in_rust.is_empty(),
-                "Schema sync mismatch for '{}':\n  \
-                 in schema but not in struct: {:?}\n  \
-                 in struct but not in schema: {:?}",
+    macro_rules! assert_union_schema_valid {
+        ($def_name:expr, $($instance:expr),+ $(,)?) => {{
+            let instances = [$( serde_json::to_value(&$instance).unwrap() ),+];
+            assert_eq!(
+                schema_union_branch_count($def_name),
+                instances.len(),
+                "'{0}' schema has {1} branches but test supplies {2} variants",
                 $def_name,
-                missing_from_rust,
-                extra_in_rust,
+                schema_union_branch_count($def_name),
+                instances.len(),
+            );
+            let validator = def_validator($def_name);
+            for value in &instances {
+                let errors: Vec<_> = validator
+                    .iter_errors(value)
+                    .map(|e| format!("  - {e}"))
+                    .collect();
+                assert!(
+                    errors.is_empty(),
+                    "Schema validation failed for '{}':\n{}",
+                    $def_name,
+                    errors.join("\n"),
+                );
+            }
+        }};
+    }
+
+    macro_rules! assert_schema_valid {
+        ($def_name:expr, $instance:expr) => {{
+            let validator = def_validator($def_name);
+            let value = serde_json::to_value(&$instance).unwrap();
+            let errors: Vec<_> = validator
+                .iter_errors(&value)
+                .map(|e| format!("  - {e}"))
+                .collect();
+            assert!(
+                errors.is_empty(),
+                "Schema validation failed for '{}':\n{}",
+                $def_name,
+                errors.join("\n"),
             );
         }};
     }
 
     #[test]
     fn schema_sync_common_response() {
-        assert_fields_match!("CommonResponse", CommonResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-        });
+        assert_schema_valid!(
+            "CommonResponse",
+            CommonResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+            }
+        );
     }
 
     #[test]
     fn schema_sync_init_response() {
-        assert_fields_match!("InitResponse", InitResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            config_complete: true,
-            missing_fields: vec![],
-        });
+        assert_schema_valid!(
+            "InitResponse",
+            InitResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                config_complete: true,
+                missing_fields: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_config() {
-        assert_fields_match!("Config", Config {
-            field_name: "f".into(),
-            category: Some("c".into()),
-            description: "d".into(),
-            config_type: ConfigType::Scalar(ScalarType::String),
-            required: true,
-            default: serde_json::Value::Null,
-        });
+        assert_schema_valid!(
+            "Config",
+            Config {
+                field_name: "f".into(),
+                category: Some("c".into()),
+                description: "d".into(),
+                config_type: ConfigType::Scalar(ScalarType::String),
+                required: true,
+                default: serde_json::Value::Null,
+            }
+        );
     }
 
     #[test]
     fn schema_sync_tool_config_response() {
-        assert_fields_match!("ToolConfigResponse", ToolConfigResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            configs: vec![],
-        });
+        assert_schema_valid!(
+            "ToolConfigResponse",
+            ToolConfigResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                configs: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_create_workfile_response() {
-        assert_fields_match!("CreateWorkfileResponse", CreateWorkfileResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            path: "/p".into(),
-        });
+        assert_schema_valid!(
+            "CreateWorkfileResponse",
+            CreateWorkfileResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                path: "/p".into(),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_device() {
-        assert_fields_match!("Device", Device {
-            tag: "t".into(),
-            key: "k".into(),
-        });
+        assert_schema_valid!(
+            "Device",
+            Device {
+                tag: "t".into(),
+                key: "k".into(),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_list_devices_response() {
-        assert_fields_match!("ListDevicesResponse", ListDevicesResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            devices: vec![],
-        });
+        assert_schema_valid!(
+            "ListDevicesResponse",
+            ListDevicesResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                devices: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_add_response() {
-        assert_fields_match!("AddResponse", AddResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            key: "k".into(),
-            path: vec!["r".into()],
-        });
+        assert_schema_valid!(
+            "AddResponse",
+            AddResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                key: "k".into(),
+                path: vec!["r".into()],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_property() {
-        assert_fields_match!("Property", Property {
-            kind: "property".into(),
-            key: "k".into(),
-            prop_type: Types::String,
-            value: serde_json::json!("v"),
-        });
+        assert_schema_valid!(
+            "Property",
+            Property {
+                kind: "property".into(),
+                key: "k".into(),
+                prop_type: Types::String,
+                value: serde_json::json!("v"),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_node() {
-        assert_fields_match!("Node", Node {
-            kind: "node".into(),
-            key: "k".into(),
-            properties: vec![],
-            children: vec![],
-            alias: Some(vec!["a".into()]),
-        });
+        assert_schema_valid!(
+            "Node",
+            Node {
+                kind: "node".into(),
+                key: "k".into(),
+                properties: vec![],
+                children: vec![],
+                alias: Some(vec!["a".into()]),
+            }
+        );
+    }
+
+    #[test]
+    fn schema_sync_read_response() {
+        assert_union_schema_valid!(
+            "ReadResponse",
+            ReadResponse::Node(Node {
+                kind: "node".into(),
+                key: "k".into(),
+                properties: vec![],
+                children: vec![],
+                alias: Some(vec!["a".into()]),
+            }),
+            ReadResponse::Property(Property {
+                kind: "property".into(),
+                key: "k".into(),
+                prop_type: Types::String,
+                value: serde_json::json!("v"),
+            }),
+        );
     }
 
     #[test]
     fn schema_sync_delete_preview() {
-        assert_fields_match!("DeletePreview", DeletePreview {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            node_count: 0,
-            property_count: 0,
-            paths: vec![],
-        });
+        assert_schema_valid!(
+            "DeletePreview",
+            DeletePreview {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                node_count: 0,
+                property_count: 0,
+                paths: vec![],
+            }
+        );
+    }
+
+    #[test]
+    fn schema_sync_delete_response() {
+        assert_union_schema_valid!(
+            "DeleteResponse",
+            DeleteResponse::Preview(DeletePreview {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                node_count: 0,
+                property_count: 0,
+                paths: vec![],
+            }),
+            DeleteResponse::Common(CommonResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+            }),
+        );
     }
 
     #[test]
     fn schema_sync_error() {
-        assert_fields_match!("Error", ValidationError {
-            kind: "generic".into(),
-            path: vec![],
-            message: "m".into(),
-        });
+        assert_schema_valid!(
+            "Error",
+            ValidationError {
+                kind: "generic".into(),
+                path: vec![],
+                message: "m".into(),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_validation_response() {
-        assert_fields_match!("ValidationResponse", ValidationResponse {
-            errors: vec![],
-            warnings: vec![],
-        });
+        assert_schema_valid!(
+            "ValidationResponse",
+            ValidationResponse {
+                errors: vec![],
+                warnings: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_intelligence_arg() {
-        assert_fields_match!("IntelligenceArg", IntelligenceArg {
-            name: "n".into(),
-            description: "d".into(),
-            required: true,
-            kind: Some("k".into()),
-        });
+        assert_schema_valid!(
+            "IntelligenceArg",
+            IntelligenceArg {
+                name: "n".into(),
+                description: "d".into(),
+                required: true,
+                kind: Some("k".into()),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_intelligence() {
-        assert_fields_match!("Intelligence", Intelligence {
-            kind: "k".into(),
-            args: vec![],
-        });
+        assert_schema_valid!(
+            "Intelligence",
+            Intelligence {
+                kind: "k".into(),
+                args: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_list_intelligence_response() {
-        assert_fields_match!("ListIntelligenceResponse", ListIntelligenceResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            intelligence: vec![],
-        });
+        assert_schema_valid!(
+            "ListIntelligenceResponse",
+            ListIntelligenceResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                intelligence: vec![],
+            }
+        );
     }
 
     #[test]
     fn schema_sync_suggestion() {
-        assert_fields_match!("Suggestion", Suggestion {
-            value: "v".into(),
-            display_string: Some("d".into()),
-        });
+        assert_schema_valid!(
+            "Suggestion",
+            Suggestion {
+                value: "v".into(),
+                display_string: Some("d".into()),
+            }
+        );
     }
 
     #[test]
     fn schema_sync_suggest_response() {
-        assert_fields_match!("SuggestResponse", SuggestResponse {
-            ok: true,
-            message: "m".into(),
-            severity: Severity::Info,
-            suggestions: vec![],
-        });
+        assert_schema_valid!(
+            "SuggestResponse",
+            SuggestResponse {
+                ok: true,
+                message: "m".into(),
+                severity: Severity::Info,
+                suggestions: vec![],
+            }
+        );
     }
 }
