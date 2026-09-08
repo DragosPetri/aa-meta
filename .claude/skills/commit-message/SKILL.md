@@ -1,9 +1,9 @@
 ---
 name: commit-message
-description: Generate a commit message from the session context and staged/unstaged git changes
+description: Generate a commit message from the session context and staged git changes
 ---
 
-Run `git diff HEAD` (or `git diff --cached` if HEAD doesn't exist) to see the outgoing changes, and `git log --oneline -10` to observe the commit style of this repo.
+Run `git diff --cached` to see the staged changes, and `git log --oneline -10` to observe the commit style of this repo.
 
 Using the changes and the current conversation context as input, compose a single commit message that:
 
