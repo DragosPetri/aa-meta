@@ -4,6 +4,16 @@ use crate::protocol::manifest::CommandName;
 use crate::protocol::responses::{Node, ReadResponse};
 use crate::transport;
 
+// --with takes a raw string. Unwrap JSON strings to their inner value;
+// for all other types (numbers, bools, arrays) use JSON serialization.
+fn raw_value(v: &serde_json::Value) -> String {
+    if let Some(s) = v.as_str() {
+        s.to_string()
+    } else {
+        v.to_string()
+    }
+}
+
 pub fn run(
     cmd: CommandName,
     positionals: &[String],
@@ -166,7 +176,7 @@ fn run_rename(
             new_path.push(to.to_string());
             let mut update_args = new_path;
             update_args.push("--with".to_string());
-            update_args.push(prop.value.to_string());
+            update_args.push(raw_value(&prop.value));
 
             transport::invoke(update_mapping, &update_args).map_err(|e| {
                 AttachMetaError::TransportError(format!(
@@ -218,7 +228,7 @@ fn run_rename(
                 update_args.truncate(new_node_path.len());
                 update_args.push(prop.key.clone());
                 update_args.push("--with".to_string());
-                update_args.push(prop.value.to_string());
+                update_args.push(raw_value(&prop.value));
                 transport::invoke(update_mapping, &update_args).map_err(|e| {
                     AttachMetaError::TransportError(format!(
                         "rename fallback step 3 (update) failed: {e}"
@@ -278,7 +288,7 @@ fn recreate_subtree(
         update_args.truncate(node_path.len());
         update_args.push(prop.key.clone());
         update_args.push("--with".to_string());
-        update_args.push(prop.value.to_string());
+        update_args.push(raw_value(&prop.value));
         transport::invoke(update_mapping, &update_args).map_err(|e| {
             AttachMetaError::TransportError(format!(
                 "{context} (update '{}') failed: {e}",
