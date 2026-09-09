@@ -64,13 +64,23 @@ Help the user write a concrete manifest for their tool. For commands the tool al
 **Suggest completions early**: Even if the user isn't planning to implement `suggest` yet, encourage adding `completions` hints as comments in the manifest so they're easy to wire up later. For example:
 
 ```jsonc
-"read": {
-  "argv": ["my-tool", "read"],
-  // "completions": [{ "arg": "read", "kind": "path" }]
+"add": {
+  "argv": ["my-tool", "add"],
+  // "completions": [
+  //   { "arg": "add",    "kind": "device-key" },  // positional arg
+  //   { "arg": "to",     "kind": "node-key"   },  // array flag (--to)
+  //   { "arg": "bus_id", "kind": "bus-id"     }   // string flag (--bus_id)
+  // ]
 }
 ```
 
-This reminds the tool author which arguments are completable once `list-intelligence` and `suggest` are implemented. The `arg` field is either a flag name (without `--`) for flag-value completion, or the command name itself for positional completion. The `kind` must match a kind advertised by `list-intelligence`.
+This reminds the tool author which arguments are completable once `list-intelligence` and `suggest` are implemented. The `arg` field has three roles:
+
+- **Positional args** (bare args like `<Device.key>` in `add` or `path...` in `read`): use the **command name** as `arg`.
+- **Array flag values** (e.g. `--to`): use the **flag name** (without `--`) as `arg`. Completions are called with previously-provided values as context, growing as each value is added.
+- **String/bool flag values** (e.g. `--bus_id`): use the **flag name** (without `--`) as `arg`.
+
+The `kind` must match a kind advertised by `list-intelligence`.
 
 ### Step 4 — Close the gaps
 

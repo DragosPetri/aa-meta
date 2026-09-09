@@ -542,12 +542,21 @@ NOTE: subcommand positional context excludes flag names and their values (string
 NOTE: agents call suggest directly for structured Suggestion[]; shells call __complete
       for line-per-value output — same suggest call underneath
 
-// In completions entries, arg serves two roles:
-//   - when preceding word starts with "--": arg is a flag name → value for that flag
-//   - otherwise: arg equals the subcommand name → positional args for the command
-// The dispatch in step 4 distinguishes by the preceding word, not by the entry itself.
-// Consequence: a flag-name entry must not use the subcommand name as its arg value, or
-// the two roles would be indistinguishable. Tool authors must avoid this collision.
+// In completions entries, arg serves three roles — step 4 selects by dispatch context:
+//   - string/bool flag value  (step 4a — preceding word is "--flag"):
+//       arg = flag name (without "--"); context = subcommand positionals
+//   - array flag values       (step 4b — inside an array flag's value run):
+//       arg = array flag name; context grows as each successive value is added
+//   - subcommand positionals  (step 4b — no enclosing array flag):
+//       arg = subcommand name; context grows as each successive positional is added
+//
+// Each command base schema declares at most one x-positional field. That field defines
+// the positional slot for the command; its completion kind is declared with the SUBCOMMAND
+// NAME as arg (not the field name). x-positional is a protocol concern — tool args may
+// not declare it.
+//
+// Consequence: a flag-name entry must not use the subcommand name as its arg value —
+// the two would be indistinguishable. Tool authors must avoid this collision.
 
 ───────────────────────────────────────────────────────────────────
 Open Items
