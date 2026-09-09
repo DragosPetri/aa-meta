@@ -32,6 +32,7 @@ pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), Attac
     }
 
     check_no_required_in_args(manifest_json)?;
+    check_no_completion_flag_shadows_command(manifest_json)?;
 
     Ok(())
 }
@@ -50,6 +51,33 @@ fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), Attach
                      tool-declared args may only add optional properties"
                 )));
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn check_no_completion_flag_shadows_command(
+    manifest: &Value,
+) -> std::result::Result<(), AttachMetaError> {
+    let commands = match manifest.get("commands").and_then(|c| c.as_object()) {
+        Some(c) => c,
+        None => return Ok(()),
+    };
+
+    for (cmd_name, mapping) in commands {
+        let collides = mapping
+            .get("args")
+            .and_then(|a| a.get("properties"))
+            .and_then(|p| p.as_object())
+            .map(|props| props.contains_key(cmd_name.as_str()))
+            .unwrap_or(false);
+
+        if collides {
+            return Err(AttachMetaError::ManifestError(format!(
+                "command '{cmd_name}' declares a flag named '{cmd_name}' — \
+                 flag names must not equal their command name (reserved for positional completion)"
+            )));
         }
     }
 
@@ -164,6 +192,27 @@ mod tests {
         let input = json!({});
         let err = validate_input(&schema, &input).unwrap_err();
         assert!(matches!(err, AttachMetaError::InputError(_)));
+    }
+
+    #[test]
+    fn completion_flag_same_as_command_name_rejected() {
+        let mut m = minimal_manifest();
+        // "add" flag declared in the "add" command — reserved for positional completion
+        m["commands"]["add"] = json!({
+            "argv": ["tool", "add"],
+            "args": {
+                "properties": {
+                    "add": { "type": "string" }
+                }
+            }
+        });
+        let err = validate_manifest(&m).unwrap_err();
+        match err {
+            AttachMetaError::ManifestError(msg) => {
+                assert!(msg.contains("flag names must not equal their command name"), "got: {msg}");
+            }
+            other => panic!("expected ManifestError, got: {other:?}"),
+        }
     }
 
     #[test]
