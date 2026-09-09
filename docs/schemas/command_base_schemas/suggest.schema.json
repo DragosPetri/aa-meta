@@ -1,7 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/suggest",
-  "description": "Base schema for the suggest command. No named flags; kind and args are positional.",
+  "description": "Base schema for the suggest command. Kind is the first positional (required); remaining positionals are kind-specific args.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "kind": { "type": "string", "x-positional": true }
+  },
+  "required": ["kind"]
 }

@@ -1,7 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/tool-config-get",
-  "description": "Base schema for tool-config-get. No named flags; field names are positional.",
+  "description": "Base schema for tool-config-get. Fields is an optional variadic positional (zero or more field names; absent returns all).",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "fields": { "type": "array", "items": { "type": "string" }, "x-positional": true }
+  }
 }

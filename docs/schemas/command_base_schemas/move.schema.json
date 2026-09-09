@@ -1,10 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/move",
-  "description": "Base schema for the move command. --to is required.",
+  "description": "Base schema for the move command. Src is a variadic positional (source path); --to is required.",
   "type": "object",
   "properties": {
-    "to": { "type": "string" }
+    "src": { "type": "array", "items": { "type": "string" }, "x-positional": true },
+    "to":  { "type": "array", "items": { "type": "string" } }
   },
   "required": ["to"]
 }

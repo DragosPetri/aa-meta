@@ -64,21 +64,39 @@ pub fn run_complete(
         None => return,
     };
 
-    // Flag-name completion: offer flags unless we're completing a flag's value
+    let array_flag_ctx = active_array_flag_ctx(
+        &rest[..rest.len().saturating_sub(1)],
+        cmd,
+        mapping.args.as_ref(),
+    );
+
+    // Step 3: flag-name pass — suppressed when inside an array flag that has a completion entry
+    // (unless partial itself starts with "--", meaning the user is explicitly asking for a flag)
     let preceding_flag = rest.len() >= 2
         && rest[rest.len() - 2].starts_with("--")
-        && !dynargs::is_bool_flag_in_schema(
+        && dynargs::flag_type_in_schema(
             rest[rest.len() - 2].trim_start_matches('-'),
             cmd,
             mapping.args.as_ref(),
-        );
-    let wants_flag = !preceding_flag && (partial.is_empty() || partial.starts_with("--"));
+        )
+        .as_deref()
+            != Some("boolean");
+
+    let wants_flag = (partial.is_empty() || partial.starts_with("--"))
+        && match &array_flag_ctx {
+            Some((flag, _)) => {
+                partial.starts_with("--")
+                    || mapping
+                        .completions
+                        .as_ref()
+                        .map_or(true, |cs| !cs.iter().any(|c| c.arg == flag.as_str()))
+            }
+            None => !preceding_flag,
+        };
+
     if wants_flag {
         let flag_prefix = partial.strip_prefix("--").unwrap_or("");
-        let already_used: Vec<&str> = rest
-            .iter()
-            .filter_map(|a| a.strip_prefix("--"))
-            .collect();
+        let already_used: Vec<&str> = rest.iter().filter_map(|a| a.strip_prefix("--")).collect();
         let all_flags = dynargs::collect_flag_names(cmd, mapping.args.as_ref());
         for flag in &all_flags {
             if flag.starts_with(flag_prefix) && !already_used.contains(&flag.as_str()) {
@@ -87,39 +105,51 @@ pub fn run_complete(
         }
     }
 
-    // Steps 3-6: value completion via manifest completions entries
+    // Step 4: value-completion pass via manifest completions entries
     let completions = match &mapping.completions {
         Some(c) => c,
         None => return,
     };
 
-    // Step 3: inspect preceding word
-    let preceding = if rest.len() >= 2 {
-        Some(&rest[rest.len() - 2])
-    } else {
-        None
-    };
-
-    let completion_kind = if let Some(prev) = preceding {
-        if let Some(flag_name) = prev.strip_prefix("--") {
-            // Step 3a: completing value of a flag
-            completions
+    // Determine completion kind and context for suggest.
+    // Inside an array flag's values: use the flag's own completion entry and its preceding
+    // values as context. Otherwise fall back to the existing flag-value / subcommand logic.
+    let (completion_kind, suggest_context): (Option<&String>, Vec<String>) =
+        if let Some((ref flag, ref preceding_values)) = array_flag_ctx {
+            let kind = completions
                 .iter()
-                .find(|c| c.arg == flag_name)
-                .map(|c| &c.kind)
+                .find(|c| c.arg == flag.as_str())
+                .map(|c| &c.kind);
+            (kind, preceding_values.clone())
         } else {
-            // Step 3b: positional completion
-            completions
-                .iter()
-                .find(|c| c.arg == subcommand.as_str())
-                .map(|c| &c.kind)
-        }
-    } else {
-        completions
-            .iter()
-            .find(|c| c.arg == subcommand.as_str())
-            .map(|c| &c.kind)
-    };
+            let preceding = if rest.len() >= 2 {
+                Some(&rest[rest.len() - 2])
+            } else {
+                None
+            };
+            let kind = if let Some(prev) = preceding {
+                if let Some(flag_name) = prev.strip_prefix("--") {
+                    completions
+                        .iter()
+                        .find(|c| c.arg == flag_name)
+                        .map(|c| &c.kind)
+                } else {
+                    completions
+                        .iter()
+                        .find(|c| c.arg == subcommand.as_str())
+                        .map(|c| &c.kind)
+                }
+            } else {
+                completions
+                    .iter()
+                    .find(|c| c.arg == subcommand.as_str())
+                    .map(|c| &c.kind)
+            };
+            (
+                kind,
+                subcommand_positional_context(rest, cmd, mapping.args.as_ref()),
+            )
+        };
 
     let kind = match completion_kind {
         Some(k) => k,
@@ -149,30 +179,13 @@ pub fn run_complete(
         return;
     }
 
-    // Collect preceding positional args (excluding partial, flag names, and flag values)
-    let mut positional_context: Vec<String> = Vec::new();
-    let mut skip_next = false;
-    for arg in rest.iter().take(rest.len().saturating_sub(1)) {
-        if skip_next {
-            skip_next = false;
-            continue;
-        }
-        if let Some(flag_name) = arg.strip_prefix("--") {
-            if !dynargs::is_bool_flag_in_schema(flag_name, cmd, mapping.args.as_ref()) {
-                skip_next = true;
-            }
-        } else {
-            positional_context.push(arg.clone());
-        }
-    }
-
     let suggest_mapping = match manifest.get_command(CommandName::Suggest) {
         Some(m) => m,
         None => return,
     };
 
     let mut suggest_args = vec![kind.clone()];
-    suggest_args.extend(positional_context);
+    suggest_args.extend(suggest_context);
 
     let suggestions = match transport::invoke(suggest_mapping, &suggest_args) {
         Ok(v) => v,
@@ -274,6 +287,68 @@ fn handle_suggest_completion(
             }
         }
     }
+}
+
+// Returns (flag_name, preceding_values) when `tokens` ends inside an array flag's value run:
+// walk backwards — collect non-"--" tokens, then check if the nearest "--" flag is array type.
+fn active_array_flag_ctx(
+    tokens: &[String],
+    cmd: CommandName,
+    tool_args: Option<&serde_json::Value>,
+) -> Option<(String, Vec<String>)> {
+    let mut values: Vec<String> = Vec::new();
+    for tok in tokens.iter().rev() {
+        if let Some(flag_name) = tok.strip_prefix("--") {
+            if dynargs::flag_type_in_schema(flag_name, cmd, tool_args).as_deref() == Some("array") {
+                values.reverse();
+                return Some((flag_name.to_string(), values));
+            }
+            return None;
+        }
+        values.push(tok.clone());
+    }
+    None
+}
+
+// Collect subcommand positional args from `rest`, excluding flag names and their values.
+// Array flags skip all following tokens (greedy); string flags skip exactly one.
+fn subcommand_positional_context(
+    rest: &[String],
+    cmd: CommandName,
+    tool_args: Option<&serde_json::Value>,
+) -> Vec<String> {
+    let mut ctx: Vec<String> = Vec::new();
+    enum Skip {
+        None,
+        One,
+        UntilNextFlag,
+    }
+    let mut skip = Skip::None;
+    for arg in rest.iter().take(rest.len().saturating_sub(1)) {
+        match skip {
+            Skip::One => {
+                skip = Skip::None;
+                continue;
+            }
+            Skip::UntilNextFlag => {
+                if !arg.starts_with("--") {
+                    continue;
+                }
+                skip = Skip::None;
+            }
+            Skip::None => {}
+        }
+        if let Some(flag_name) = arg.strip_prefix("--") {
+            match dynargs::flag_type_in_schema(flag_name, cmd, tool_args).as_deref() {
+                Some("array") => skip = Skip::UntilNextFlag,
+                Some("boolean") => {}
+                _ => skip = Skip::One,
+            }
+        } else {
+            ctx.push(arg.clone());
+        }
+    }
+    ctx
 }
 
 fn print_command_list() {

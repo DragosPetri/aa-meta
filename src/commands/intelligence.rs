@@ -25,6 +25,7 @@ pub fn run(
                         "command 'list-intelligence' not in manifest".to_string(),
                     )
                 })?;
+
             let li_raw = transport::invoke(li_mapping, &[])?;
             let li_response: ListIntelligenceResponse =
                 serde_json::from_value(li_raw).map_err(|e| {
@@ -32,18 +33,19 @@ pub fn run(
                         "failed to parse list-intelligence response: {e}"
                     ))
                 })?;
+
             let kind = positionals.first().ok_or_else(|| {
                 AttachMetaError::InputError("suggest requires a kind argument".to_string())
             })?;
-            let advertised = li_response
-                .intelligence
-                .iter()
-                .any(|i| i.kind == *kind);
+
+            let advertised = li_response.intelligence.iter().any(|i| i.kind == *kind);
+
             if !advertised {
                 return Err(AttachMetaError::InputError(format!(
                     "suggest kind '{kind}' is not advertised by list-intelligence"
                 )));
             }
+
             transport::invoke(mapping, positionals)
         }
         _ => unreachable!(),

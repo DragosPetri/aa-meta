@@ -1,9 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/update",
-  "description": "Base schema for the update command. --with is required.",
+  "description": "Base schema for the update command. Path is a variadic positional; --with is required.",
   "type": "object",
   "properties": {
+    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true },
     "with": { "type": "string" }
   },
   "required": ["with"]

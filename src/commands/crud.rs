@@ -28,6 +28,9 @@ pub fn run(
             } else if let Some(s) = val.as_str() {
                 extra_args.push(format!("--{key}"));
                 extra_args.push(s.to_string());
+            } else if let Some(arr) = val.as_array() {
+                extra_args.push(format!("--{key}"));
+                extra_args.extend(arr.iter().filter_map(|v| v.as_str()).map(String::from));
             }
         }
     }

@@ -1,7 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/validate",
-  "description": "Base schema for the validate command. No named flags; path is positional.",
+  "description": "Base schema for the validate command. Path is a variadic positional (zero or more identifiers).",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true }
+  }
 }

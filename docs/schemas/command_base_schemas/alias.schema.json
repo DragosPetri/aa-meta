@@ -1,9 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/alias",
-  "description": "Base schema for the alias command. Exactly one of --with or --remove must be present.",
+  "description": "Base schema for the alias command. Path is a variadic positional; exactly one of --with or --remove must be present.",
   "type": "object",
   "properties": {
+    "path":   { "type": "array", "items": { "type": "string" }, "x-positional": true },
     "with":   { "type": "string" },
     "remove": { "type": "string" }
   },

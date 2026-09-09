@@ -84,6 +84,30 @@ mod tests {
     }
 
     #[test]
+    fn each_base_schema_has_at_most_one_x_positional() {
+        for cmd in CommandName::ALL {
+            let schema = base_schema(*cmd);
+            let count = schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+                .map(|props| {
+                    props
+                        .values()
+                        .filter(|prop| {
+                            prop.get("x-positional").and_then(|v| v.as_bool()) == Some(true)
+                        })
+                        .count()
+                })
+                .unwrap_or(0);
+            assert!(
+                count <= 1,
+                "base schema for '{}' has {count} x-positional properties; at most 1 is allowed",
+                cmd
+            );
+        }
+    }
+
+    #[test]
     fn effective_merges_allof() {
         let tool_args = json!({
             "properties": {

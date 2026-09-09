@@ -1,10 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "attach-meta/base/rename",
-  "description": "Base schema for the rename command. --to is required.",
+  "description": "Base schema for the rename command. Path is a variadic positional; --to is required.",
   "type": "object",
   "properties": {
-    "to": { "type": "string" }
+    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true },
+    "to":   { "type": "string" }
   },
   "required": ["to"]
 }

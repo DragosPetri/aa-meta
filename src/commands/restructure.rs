@@ -18,28 +18,54 @@ pub fn run(
     }
 }
 
+fn get_array_flag(flags: &serde_json::Value, key: &str) -> Vec<String> {
+    flags
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn append_segment(parent: &[String], seg: &str) -> Vec<String> {
+    let mut v = parent.to_vec();
+    v.push(seg.to_string());
+    v
+}
+
+fn push_array_flag(args: &mut Vec<String>, flag: &str, values: &[String]) {
+    if values.is_empty() {
+        return;
+    }
+    args.push(format!("--{flag}"));
+    args.extend(values.iter().cloned());
+}
+
 fn run_move(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
 ) -> std::result::Result<serde_json::Value, AttachMetaError> {
+    let destination = get_array_flag(flags, "to");
+
     // Native move if available
     if let Some(mapping) = ctx.manifest.get_command(CommandName::Move) {
         let mut args = positionals.to_vec();
-        if let Some(to) = flags.get("to").and_then(|v| v.as_str()) {
-            args.push("--to".to_string());
-            args.push(to.to_string());
-        }
+        push_array_flag(&mut args, "to", &destination);
         return transport::invoke(mapping, &args);
     }
 
-    // Fallback: read → add → update → delete --force
-    let to = flags
-        .get("to")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| AttachMetaError::InputError("--to is required for move".to_string()))?;
+    if destination.is_empty() {
+        return Err(AttachMetaError::InputError(
+            "--to is required for move".to_string(),
+        ));
+    }
 
-    // Step 1: read the source node
+    // Fallback: read → add → update → delete --force
     let read_mapping = ctx
         .manifest
         .get_command(CommandName::Read)
@@ -72,59 +98,23 @@ fn run_move(
         .get_command(CommandName::Update)
         .ok_or_else(|| AttachMetaError::ManifestError("'update' not in manifest".to_string()))?;
 
-    fn recreate_subtree(
-        node: &Node,
-        parent_path: &str,
-        add_mapping: &crate::protocol::manifest::CommandMapping,
-        update_mapping: &crate::protocol::manifest::CommandMapping,
-    ) -> std::result::Result<(), AttachMetaError> {
-        // Add node under new parent
-        let add_args = vec![
-            "--key".to_string(),
-            node.key.clone(),
-            "--parent".to_string(),
-            parent_path.to_string(),
-        ];
-        transport::invoke(add_mapping, &add_args).map_err(|e| {
-            AttachMetaError::TransportError(format!(
-                "move fallback step 2 (add '{}') failed: {e}",
-                node.key
-            ))
-        })?;
-
-        // Update properties
-        for prop in &node.properties {
-            let update_args = vec![
-                node.key.clone(),
-                prop.key.clone(),
-                "--with".to_string(),
-                prop.value.to_string(),
-            ];
-            transport::invoke(update_mapping, &update_args).map_err(|e| {
-                AttachMetaError::TransportError(format!(
-                    "move fallback step 3 (update '{}') failed: {e}",
-                    prop.key
-                ))
-            })?;
-        }
-
-        // Recurse into children
-        for child in &node.children {
-            recreate_subtree(child, &node.key, add_mapping, update_mapping)?;
-        }
-
-        Ok(())
-    }
-
-    recreate_subtree(&node, to, add_mapping, update_mapping)?;
+    recreate_subtree(
+        &node,
+        &destination,
+        "move fallback",
+        add_mapping,
+        update_mapping,
+    )?;
 
     // Step 4: delete old node with --force
     let delete_mapping = ctx
         .manifest
         .get_command(CommandName::Delete)
         .ok_or_else(|| AttachMetaError::ManifestError("'delete' not in manifest".to_string()))?;
+
     let mut del_args = positionals.to_vec();
     del_args.push("--force".to_string());
+
     transport::invoke(delete_mapping, &del_args).map_err(|e| {
         AttachMetaError::TransportError(format!(
             "move fallback step 4 (delete --force) failed: {e}"
@@ -209,26 +199,24 @@ fn run_rename(
                         AttachMetaError::ManifestError("'update' not in manifest".to_string())
                     })?;
 
-            // Determine parent from positionals (all but last)
-            let parent = if positionals.len() > 1 {
-                positionals[..positionals.len() - 1].join(" ")
-            } else {
-                String::new()
-            };
+            // Parent path = positionals minus the last element (the node being renamed)
+            let parent_path = &positionals[..positionals.len().saturating_sub(1)];
 
             // Add new node with new name under same parent
             let mut add_args = vec!["--name".to_string(), to.to_string()];
-            if !parent.is_empty() {
-                add_args.push("--parent".to_string());
-                add_args.push(parent);
-            }
+            push_array_flag(&mut add_args, "to", parent_path);
             transport::invoke(add_mapping, &add_args).map_err(|e| {
                 AttachMetaError::TransportError(format!("rename fallback step 2 (add) failed: {e}"))
             })?;
 
-            // Update properties on new node
+            // Full path to the new node
+            let new_node_path = append_segment(parent_path, to);
+
+            // Update properties on new node: path = [...parent, to, prop.key]
+            let mut update_args = new_node_path.clone();
             for prop in &node.properties {
-                let mut update_args = vec![to.to_string(), prop.key.clone()];
+                update_args.truncate(new_node_path.len());
+                update_args.push(prop.key.clone());
                 update_args.push("--with".to_string());
                 update_args.push(prop.value.to_string());
                 transport::invoke(update_mapping, &update_args).map_err(|e| {
@@ -240,7 +228,13 @@ fn run_rename(
 
             // Recreate children under new node
             for child in &node.children {
-                recreate_child(&child, to, add_mapping, update_mapping)?;
+                recreate_subtree(
+                    child,
+                    &new_node_path,
+                    "rename fallback",
+                    add_mapping,
+                    update_mapping,
+                )?;
             }
 
             // Delete old node
@@ -264,42 +258,37 @@ fn run_rename(
     }
 }
 
-fn recreate_child(
+fn recreate_subtree(
     node: &Node,
-    parent: &str,
+    parent_path: &[String],
+    context: &str,
     add_mapping: &crate::protocol::manifest::CommandMapping,
     update_mapping: &crate::protocol::manifest::CommandMapping,
 ) -> std::result::Result<(), AttachMetaError> {
-    let add_args = vec![
-        "--key".to_string(),
-        node.key.clone(),
-        "--parent".to_string(),
-        parent.to_string(),
-    ];
+    let mut add_args = vec!["--key".to_string(), node.key.clone()];
+    push_array_flag(&mut add_args, "to", parent_path);
     transport::invoke(add_mapping, &add_args).map_err(|e| {
-        AttachMetaError::TransportError(format!(
-            "rename fallback (add child '{}') failed: {e}",
-            node.key
-        ))
+        AttachMetaError::TransportError(format!("{context} (add '{}') failed: {e}", node.key))
     })?;
 
+    let node_path = append_segment(parent_path, &node.key);
+
+    let mut update_args = node_path.clone();
     for prop in &node.properties {
-        let update_args = vec![
-            node.key.clone(),
-            prop.key.clone(),
-            "--with".to_string(),
-            prop.value.to_string(),
-        ];
+        update_args.truncate(node_path.len());
+        update_args.push(prop.key.clone());
+        update_args.push("--with".to_string());
+        update_args.push(prop.value.to_string());
         transport::invoke(update_mapping, &update_args).map_err(|e| {
             AttachMetaError::TransportError(format!(
-                "rename fallback (update '{}') failed: {e}",
+                "{context} (update '{}') failed: {e}",
                 prop.key
             ))
         })?;
     }
 
     for child in &node.children {
-        recreate_child(child, &node.key, add_mapping, update_mapping)?;
+        recreate_subtree(child, &node_path, context, add_mapping, update_mapping)?;
     }
 
     Ok(())
@@ -320,6 +309,7 @@ fn run_alias(
         })?;
 
     let mut args = positionals.to_vec();
+
     if let Some(with) = flags.get("with").and_then(|v| v.as_str()) {
         args.push("--with".to_string());
         args.push(with.to_string());

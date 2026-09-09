@@ -425,7 +425,7 @@ fn add_with_key_succeeds() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_json(&["add", "--key", "my_device"]);
+    let out = env.run_json(&["add", "my_device"]);
     assert!(
         out.status.success(),
         "stdout: {} stderr: {}",
@@ -444,7 +444,7 @@ fn add_with_tool_declared_flag() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_json(&["add", "--key", "k", "--bus_id", "spi0"]);
+    let out = env.run_json(&["add", "k", "--bus_id", "spi0"]);
     assert!(out.status.success(), "stderr: {}", stderr(&out));
 
     let log = env.invocation_log();
@@ -782,19 +782,28 @@ fn complete_subcommand_suggests_flags() {
     let out = env.run_cmd(&["__complete", "--", "add"]);
     assert!(out.status.success());
     let lines = stdout(&out);
-    assert!(lines.contains("--key"), "missing --key: {lines}");
+    assert!(!lines.contains("--key"), "--key must not appear (it's positional): {lines}");
     assert!(lines.contains("--name"), "missing --name: {lines}");
-    assert!(lines.contains("--parent"), "missing --parent: {lines}");
+    assert!(lines.contains("--to"), "missing --to: {lines}");
     assert!(lines.contains("--bus_id"), "missing --bus_id: {lines}");
 
     // With trailing empty string (what zsh sends for add <TAB>)
     let out = env.run_cmd(&["__complete", "--", "add", ""]);
     assert!(out.status.success());
     let lines = stdout(&out);
-    assert!(lines.contains("--key"), "zsh-style missing --key: {lines}");
-    assert!(lines.contains("--name"), "zsh-style missing --name: {lines}");
-    assert!(lines.contains("--parent"), "zsh-style missing --parent: {lines}");
-    assert!(lines.contains("--bus_id"), "zsh-style missing --bus_id: {lines}");
+    assert!(
+        !lines.contains("--key"),
+        "zsh-style --key must not appear (it's positional): {lines}"
+    );
+    assert!(
+        lines.contains("--name"),
+        "zsh-style missing --name: {lines}"
+    );
+    assert!(lines.contains("--to"), "zsh-style missing --to: {lines}");
+    assert!(
+        lines.contains("--bus_id"),
+        "zsh-style missing --bus_id: {lines}"
+    );
 }
 
 #[test]
@@ -804,12 +813,18 @@ fn complete_partial_flag_filters() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_cmd(&["__complete", "--", "add", "--k"]);
+    let out = env.run_cmd(&["__complete", "--", "add", "--n"]);
     assert!(out.status.success());
     let lines = stdout(&out);
-    assert!(lines.contains("--key"), "missing --key: {lines}");
-    assert!(!lines.contains("--bus_id"), "should not contain --bus_id: {lines}");
-    assert!(!lines.contains("--name"), "should not contain --name: {lines}");
+    assert!(lines.contains("--name"), "missing --name: {lines}");
+    assert!(
+        !lines.contains("--bus_id"),
+        "should not contain --bus_id: {lines}"
+    );
+    assert!(
+        !lines.contains("--to"),
+        "should not contain --to: {lines}"
+    );
 }
 
 #[test]
@@ -819,11 +834,14 @@ fn complete_excludes_already_used_flags() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_cmd(&["__complete", "--", "add", "--key", "val", "--"]);
+    let out = env.run_cmd(&["__complete", "--", "add", "--name", "val", "--"]);
     assert!(out.status.success());
     let lines = stdout(&out);
-    assert!(!lines.contains("--key"), "should not re-suggest --key: {lines}");
-    assert!(lines.contains("--name"), "missing --name: {lines}");
+    assert!(
+        !lines.contains("--name"),
+        "should not re-suggest --name: {lines}"
+    );
+    assert!(lines.contains("--to"), "missing --to: {lines}");
     assert!(lines.contains("--bus_id"), "missing --bus_id: {lines}");
 }
 
@@ -854,13 +872,16 @@ fn complete_positional_value_filters_by_prefix() {
     assert!(out.status.success());
     let lines = stdout(&out);
     assert!(lines.contains("ad7124"), "missing ad7124: {lines}");
-    assert!(!lines.contains("ad5940"), "ad5940 should be filtered: {lines}");
+    assert!(
+        !lines.contains("ad5940"),
+        "ad5940 should be filtered: {lines}"
+    );
 }
 
 #[test]
 fn complete_flag_value_via_suggest() {
     let env = TestEnv::new();
-    // Manifest with flag-value completion: arg "key" -> kind "device-key"
+    // Manifest with flag-value completion: arg "name" -> kind "device-key"
     env.write_manifest(&format!(
         r#"{{
   "protocol_version": "1.0.0",
@@ -869,7 +890,7 @@ fn complete_flag_value_via_suggest() {
     "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
     "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
     "list-devices":    {{ "argv": ["{bin}", "devices"] }},
-    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "key", "kind": "device-key" }}] }},
+    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "name", "kind": "device-key" }}] }},
     "read":            {{ "argv": ["{bin}", "read"] }},
     "update":          {{ "argv": ["{bin}", "update"] }},
     "delete":          {{ "argv": ["{bin}", "delete"] }},
@@ -883,7 +904,7 @@ fn complete_flag_value_via_suggest() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_cmd(&["__complete", "--", "add", "--key", ""]);
+    let out = env.run_cmd(&["__complete", "--", "add", "--name", ""]);
     assert!(out.status.success());
     let lines = stdout(&out);
     assert!(lines.contains("ad7124"), "missing ad7124: {lines}");
@@ -892,9 +913,9 @@ fn complete_flag_value_via_suggest() {
 
 #[test]
 fn complete_positional_context_excludes_flag_values() {
-    // Regression test for M3: flag values must not be forwarded as positional context.
+    // Regression test: flag values must not be forwarded as positional context.
     // The default manifest has completions: [{"arg": "add", "kind": "device-key"}]
-    // Invoking __complete -- add --key myval soc ""  should call:
+    // Invoking __complete -- add --bus_id myval soc ""  should call:
     //   suggest device-key soc          (positional "soc" only)
     // NOT:
     //   suggest device-key myval soc    (flag value "myval" incorrectly included)
@@ -903,7 +924,7 @@ fn complete_positional_context_excludes_flag_values() {
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_cmd(&["__complete", "--", "add", "--key", "myval", "soc", ""]);
+    let out = env.run_cmd(&["__complete", "--", "add", "--bus_id", "myval", "soc", ""]);
     assert!(out.status.success());
 
     let log = env.invocation_log();
@@ -915,6 +936,122 @@ fn complete_positional_context_excludes_flag_values() {
     assert!(
         suggest_line.ends_with("suggest device-key soc"),
         "expected 'suggest device-key soc', got: {suggest_line}"
+    );
+}
+
+// ─── Array-flag completions ───
+
+#[test]
+fn complete_array_flag_uses_flag_completion_entry() {
+    // When the cursor is inside an array flag's value run and the manifest has a
+    // completions entry for that flag, the flag's own completion kind is used.
+    // add --to soc ""  →  suggest node-key soc
+    let env = TestEnv::new();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "to", "kind": "node-key" }}] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "list-intelligence": {{ "argv": ["{bin}", "list-intelligence"] }},
+    "suggest":         {{ "argv": ["{bin}", "suggest"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--to", "soc", ""]);
+    assert!(out.status.success());
+
+    let log = env.invocation_log();
+    let suggest_line = log
+        .lines()
+        .filter(|l| l.contains(" suggest "))
+        .last()
+        .unwrap_or("");
+    assert!(
+        suggest_line.ends_with("suggest node-key soc"),
+        "expected 'suggest node-key soc', got: {suggest_line}"
+    );
+}
+
+#[test]
+fn complete_array_flag_grows_context_with_each_value() {
+    // Each preceding value inside the array flag run is passed as context.
+    // add --to soc i2c ""  →  suggest node-key soc i2c
+    let env = TestEnv::new();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "to", "kind": "node-key" }}] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "list-intelligence": {{ "argv": ["{bin}", "list-intelligence"] }},
+    "suggest":         {{ "argv": ["{bin}", "suggest"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--to", "soc", "i2c", ""]);
+    assert!(out.status.success());
+
+    let log = env.invocation_log();
+    let suggest_line = log
+        .lines()
+        .filter(|l| l.contains(" suggest "))
+        .last()
+        .unwrap_or("");
+    assert!(
+        suggest_line.ends_with("suggest node-key soc i2c"),
+        "expected 'suggest node-key soc i2c', got: {suggest_line}"
+    );
+}
+
+#[test]
+fn complete_array_flag_no_entry_suggests_flags() {
+    // When the cursor is inside an array flag's value run but the manifest has no
+    // completions entry for that flag, flag names are suggested instead.
+    // Default manifest has no "to" entry → no suggest call, output contains --name.
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--to", "soc", ""]);
+    assert!(out.status.success());
+
+    let lines = stdout(&out);
+    // Should suggest flags, not invoke suggest with node-key context
+    assert!(lines.contains("--name"), "expected --name in flag suggestions: {lines}");
+
+    // No suggest invocation for array-flag context
+    let log = env.invocation_log();
+    let suggest_calls: Vec<&str> = log
+        .lines()
+        .filter(|l| l.contains(" suggest "))
+        .collect();
+    assert!(
+        suggest_calls.is_empty(),
+        "expected no suggest calls when array flag has no completion entry, got: {suggest_calls:?}"
     );
 }
 
@@ -962,6 +1099,118 @@ fn move_fallback_invokes_read_add_update_delete() {
     assert!(add_pos < update_pos, "add should come before update");
     assert!(update_pos < delete_pos, "update should come before delete");
     assert!(log.contains("--force"), "delete should use --force");
+}
+
+// ─── Array flag forwarding ───
+
+#[test]
+fn add_to_array_flag_forwarded_flag_once() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["add", "foo", "--to", "soc", "i2c"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let add_line = log.lines().find(|l| l.contains(" add ")).unwrap_or("");
+    assert!(
+        add_line.contains("--to soc i2c"),
+        "expected '--to soc i2c' (flag once), got: {add_line}"
+    );
+    assert!(
+        !add_line.contains("--to soc --to"),
+        "must not repeat --to flag, got: {add_line}"
+    );
+}
+
+#[test]
+fn move_native_to_array_flag_forwarded_flag_once() {
+    let env = TestEnv::new();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "move":            {{ "argv": ["{bin}", "move"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_tool(
+        r#"
+    move)
+        echo '{"ok":true,"message":"moved","severity":"info"}'
+        exit 0
+        ;;
+"#,
+    );
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["move", "my_node", "--to", "soc", "i2c"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let move_line = log.lines().find(|l| l.contains(" move ")).unwrap_or("");
+    assert!(
+        move_line.contains("--to soc i2c"),
+        "expected '--to soc i2c' (flag once), got: {move_line}"
+    );
+    assert!(
+        !move_line.contains("--to soc --to"),
+        "must not repeat --to flag, got: {move_line}"
+    );
+}
+
+#[test]
+fn move_fallback_to_array_flag_forwarded_flag_once() {
+    let env = TestEnv::new();
+    // Manifest WITHOUT move — triggers fallback that uses push_array_flag in recreate_subtree
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["move", "my_node", "--to", "soc", "i2c"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let add_line = log
+        .lines()
+        .find(|l| l.contains(" add ") && l.contains("--to"))
+        .unwrap_or("");
+    assert!(
+        add_line.contains("--to soc i2c"),
+        "fallback add: expected '--to soc i2c' (flag once), got: {add_line}"
+    );
+    assert!(
+        !add_line.contains("--to soc --to"),
+        "fallback add must not repeat --to flag, got: {add_line}"
+    );
 }
 
 // ─── Exit codes ───

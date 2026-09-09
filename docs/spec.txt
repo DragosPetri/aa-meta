@@ -90,6 +90,16 @@ Versioning:
 // forbidden and attach-meta will reject a manifest that declares one, so the
 // protocol always controls what is required.
 //
+// Flag parsing rules (applies to all commands):
+//   - boolean flag  ("type": "boolean") — takes no value; presence sets it true
+//   - string flag   ("type": "string")  — consumes exactly the next token as its value
+//   - array flag    ("type": "array")   — consumes ALL following tokens until the next
+//                                         "--"-prefixed token (or end of args); requires
+//                                         at least one value; forwarded to the subtool
+//                                         as --flag val1 val2 ... (flag name once, all
+//                                         values as separate positional tokens after it)
+//   - unknown flag  — treated as a string flag (forward as-is)
+//
 // In completions entries, arg has two roles:
 //   - a flag name (without "--") => completes the value of that flag
 //   - the subcommand name        => completes positional args for the command
@@ -107,7 +117,7 @@ Versioning:
   },
   "completions": [
     { "arg": "add",    "kind": "device-key" },
-    { "arg": "parent", "kind": "node-key"   },
+    { "arg": "to",     "kind": "node-key"   },
     { "arg": "bus_id", "kind": "bus-id"     }
   ]
 }
@@ -117,9 +127,9 @@ Versioning:
 ```json
 {
   "properties": {
-    "key":    { "type": "string" },
-    "name":   { "type": "string" },
-    "parent": { "type": "string" }
+    "key":  { "type": "string", "x-positional": true },
+    "name": { "type": "string" },
+    "to":   { "type": "array", "items": { "type": "string" } }
   },
   "anyOf": [
     { "required": ["key"] },
@@ -257,11 +267,12 @@ Commands — CRUD
 
 COMMAND:
 ```
-attach-meta add (--key <Device.key> | --name <name> | --key <Device.key> --name <name>) [--parent <ValidIdentifier>] => AddResponse
+attach-meta add [<Device.key>] [--name <name>] [--to ...ValidIdentifier] => AddResponse
 
-NOTE: at least one of --key or --name must be present; both may be supplied together
-NOTE: --parent is optional; root is implied when absent
-NOTE: key in AddResponse is the device key of the created node (tool-generated if --key is not supplied)
+NOTE: at least one of the positional key or --name must be present; both may be supplied together
+NOTE: the positional arg is the device key; --name is an additional human-readable name
+NOTE: --to is the parent path (array flag — see flag parsing rules); absent means root
+NOTE: key in AddResponse is the device key of the created node (positional key if supplied, else tool-generated)
 NOTE: path in AddResponse is the absolute path from root to the created node
 ```
 
@@ -313,7 +324,7 @@ attach-meta move [ValidIdentifier, ...ValidIdentifier] --to [...ValidIdentifier]
 
 NOTE: only nodes are movable
 NOTE: no implicit root for positional (can't move root)
-NOTE: no implicit root for --to
+NOTE: --to is the destination parent path (array flag — see flag parsing rules); no implicit root
 NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
 
 Move workflow (fallback) when native move is unsupported:
@@ -498,25 +509,36 @@ __complete algorithm (everything after "--" is passed in as args):
         - otherwise: output nothing; done
   3. Flag-name pass:
      If <partial> is empty or starts with "--", AND the word before <partial> is
-     not a non-bool flag awaiting its value: output "--<flag>" for each flag from
-     (base schema + tool args) that starts with <partial> (strip leading "--" first)
-     and has not already appeared in [args...]
+     not a non-bool flag awaiting its value, AND either:
+       - we are not inside an array flag's value run (see step 4b), OR
+       - <partial> starts with "--" (user is explicitly requesting a flag), OR
+       - we are inside an array flag's value run but that flag has no completions entry:
+     output "--<flag>" for each flag from (base schema + tool args) that starts with
+     <partial> (strip leading "--" first) and has not already appeared in [args...]
   4. Value-completion pass (runs after step 3 in the same invocation):
-     Inspect the word immediately preceding <partial>:
-     a. If it starts with "--": look up completions[arg == stripped-flag-name]
-     b. Otherwise:             look up completions[arg == <subcommand>]
-     If an entry is found and its kind is advertised by list-intelligence:
-       call suggest <kind> [...preceding positional args];
+     a. If the word immediately preceding <partial> starts with "--":
+        kind  = completions[arg == stripped-flag-name]
+        context = [...preceding subcommand positionals]
+     b. Otherwise, walk back past non-"--" tokens from <partial> to the nearest "--" flag:
+        - Array flag found: kind    = completions[arg == array_flag_name]
+                           context = [values already provided to that flag]
+          (each flag treats its values like subcommand positionals — one completions entry,
+           context grows as more values are added)
+          If no completions entry for this flag: output flag names (step 3 fallback); done
+        - No array flag (plain positionals): kind    = completions[arg == <subcommand>]
+                                             context = [...preceding subcommand positionals]
+     If kind is found and advertised by list-intelligence:
+       call suggest <kind> [...context];
        output Suggestion[].value filtered by prefix
      Otherwise: output nothing
 
 NOTE: "filtered by prefix" = only items where value.starts_with(<partial>) are emitted
-NOTE: steps 3 and 4 both run in the same invocation and are not mutually exclusive;
-      their outputs don't overlap in practice — <partial> starting with "--" means
-      suggestion values (device keys, node names, etc.) won't pass the prefix filter
+NOTE: steps 3 and 4 both run in the same invocation; they are non-exclusive except when
+      inside an array flag with a completions entry — there, step 3 is suppressed (unless
+      <partial> starts with "--") so flag names and value suggestions don't mix
 NOTE: an unadvertised kind in completions silently yields no candidates — not an error
-NOTE: for value completion, all preceding positional args are forwarded to suggest as
-      context; tools can vary suggestions dynamically based on prior tokens
+NOTE: subcommand positional context excludes flag names and their values (string flags skip
+      one token; array flags skip all following tokens until the next "--" flag)
 NOTE: agents call suggest directly for structured Suggestion[]; shells call __complete
       for line-per-value output — same suggest call underneath
 

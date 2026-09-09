@@ -132,9 +132,13 @@ fn main() {
         }
     };
 
-    // Validate input against effective schema
+    // Validate input against effective schema.
+    // x-positional properties (positional args) are injected into a temporary flags copy
+    // so the schema's anyOf / required constraints can reference them normally.
     let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
-    if let Err(e) = schema::validate_input(&eff_schema, &parsed.flags_json) {
+    let mut validation_flags = parsed.flags_json.clone();
+    inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
+    if let Err(e) = schema::validate_input(&eff_schema, &validation_flags) {
         exit_error(e, cli.json);
     }
 
@@ -243,4 +247,43 @@ fn exit_error(err: AttachMetaError, json_mode: bool) -> ! {
         eprintln!("attach-meta: {err}");
     }
     std::process::exit(code);
+}
+
+// Inject x-positional properties from the base schema into `flags` so that schema validation
+// can evaluate anyOf / required constraints that reference them.  The original `flags_json`
+// passed to dispatch is NOT modified — this only affects the temporary copy used for validation.
+//
+// Array x-positionals consume all remaining positionals (e.g. a variadic path).
+// String x-positionals consume one positional each, in property-declaration order.
+fn inject_x_positionals(
+    cmd: CommandName,
+    positionals: &[String],
+    flags: &mut serde_json::Value,
+) {
+    let base = protocol::base_schema::base_schema(cmd);
+    let props = match base.get("properties").and_then(|p| p.as_object()) {
+        Some(p) => p,
+        None => return,
+    };
+    let mut pos_idx = 0;
+    for (name, prop) in props {
+        if prop.get("x-positional").and_then(|v| v.as_bool()) != Some(true) {
+            continue;
+        }
+        if prop.get("type").and_then(|v| v.as_str()) == Some("array") {
+            if let Some(obj) = flags.as_object_mut() {
+                let values: Vec<_> = positionals[pos_idx..]
+                    .iter()
+                    .map(|s| serde_json::json!(s))
+                    .collect();
+                obj.insert(name.clone(), serde_json::Value::Array(values));
+            }
+            break;
+        } else {
+            if let (Some(val), Some(obj)) = (positionals.get(pos_idx), flags.as_object_mut()) {
+                obj.insert(name.clone(), serde_json::json!(val));
+            }
+            pos_idx += 1;
+        }
+    }
 }
