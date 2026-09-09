@@ -44,6 +44,7 @@ pub struct Config {
     pub config_type: ConfigType,
     pub required: bool,
     pub default: serde_json::Value,
+    pub value: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -447,6 +448,7 @@ mod tests {
                 config_type: ConfigType::Scalar(ScalarType::String),
                 required: true,
                 default: serde_json::Value::Null,
+                value: serde_json::Value::Null,
             }
         );
     }

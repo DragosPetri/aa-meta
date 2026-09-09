@@ -75,8 +75,8 @@ case "$1" in
     config-get)
         cat <<'JSON'
 {{"ok":true,"message":"configs","severity":"info","configs":[
-  {{"field_name":"workfile","description":"Path to workfile","type":"path","required":true,"default":null}},
-  {{"field_name":"board","description":"Target board","type":"string","required":false,"default":"generic"}}
+  {{"field_name":"workfile","description":"Path to workfile","type":"path","required":true,"default":null,"value":null}},
+  {{"field_name":"board","description":"Target board","type":"string","required":false,"default":"generic","value":"generic"}}
 ]}}
 JSON
         exit 0

@@ -33,9 +33,9 @@
     },
 
     "Config": {
-      "description": "Describes a single tool configuration field.",
+      "description": "Describes a single tool configuration field and its current value.",
       "type": "object",
-      "required": ["field_name", "description", "type", "required", "default"],
+      "required": ["field_name", "description", "type", "required", "default", "value"],
       "additionalProperties": false,
       "properties": {
         "field_name":  { "type": "string" },
@@ -50,7 +50,16 @@
         },
         "required": { "type": "boolean" },
         "default": {
-          "description": "Default value, or null when no default exists. null is not itself a valid config value — configs are paths, strings, numbers, or enums.",
+          "description": "Schema-declared default, or null when no default exists. null is not itself a valid config value — configs are paths, strings, numbers, or enums.",
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" }
+          ]
+        },
+        "value": {
+          "description": "Currently stored value, or null when not yet set. Sub-tools must pre-populate required configs that have a default so this reflects the live state.",
           "oneOf": [
             { "type": "null" },
             { "type": "string" },

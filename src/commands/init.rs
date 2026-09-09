@@ -111,9 +111,9 @@ pub fn run_init(
         match transport::invoke(tcg_mapping, &[]) {
             Ok(resp) => {
                 if let Ok(tcr) = serde_json::from_value::<ToolConfigResponse>(resp) {
-                    // Determine missing required fields
+                    // Determine missing required fields: required and not yet set
                     for cfg in &tcr.configs {
-                        if cfg.required && cfg.default.is_null() {
+                        if cfg.required && cfg.value.is_null() {
                             missing_fields.push(cfg.field_name.clone());
                         }
                     }

@@ -231,9 +231,15 @@ attach-meta tool-config-get => gets all configs for the tool => ToolConfigRespon
 attach-meta tool-config-get [field, ...field] => gets config of field(s) => ToolConfigResponse
 attach-meta tool-config-set [field] [value] => set config field to value => CommonResponse
 
-NOTE: Config.default must always be present; null means no default exists; null is not a
-      valid default value — configs in this protocol are always paths, strings,
-      numbers, or enums
+NOTE: Config.default is the schema-declared fallback; null means no default exists;
+      null is not a valid default value — configs are always paths, strings, numbers,
+      or enums
+NOTE: Config.value is the currently stored value; null means not yet set
+NOTE: sub-tools must pre-populate required configs that have a declared default into
+      their config store so Config.value reflects a usable value from first call
+NOTE: tool-config-set overwrites Config.value; the default is always preserved and
+      can be restored by setting the value back explicitly
+NOTE: missing_fields in InitResponse lists required configs whose Config.value is null
 ```
 
 ───────────────────────────────────────────────────────────────────
