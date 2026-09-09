@@ -60,6 +60,12 @@ fn run_move(
     flags: &serde_json::Value,
     ctx: &CommandContext,
 ) -> std::result::Result<serde_json::Value, AttachMetaError> {
+    if positionals.is_empty() {
+        return Err(AttachMetaError::InputError(
+            "move requires a source path; root cannot be moved".to_string(),
+        ));
+    }
+
     let destination = get_array_flag(flags, "to");
 
     // Native move if available

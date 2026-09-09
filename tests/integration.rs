@@ -1275,3 +1275,629 @@ fn json_mode_error_envelope() {
     assert!(response["error"].is_string());
     assert!(response["category"].is_string());
 }
+
+// ─── Hash caching (gaps) ───
+
+#[test]
+fn hash_unchanged_skips_revalidation() {
+    // Write a manifest that would fail meta-schema (missing required "add" command) but store
+    // its SHA-256 in the config. Because the hash matches, meta-schema validation is skipped
+    // and the command succeeds despite the incomplete manifest.
+    let env = TestEnv::new();
+    env.write_default_tool(); // must be written before the manifest references its path
+    env.write_manifest(&format!(
+        r#"{{
+        "protocol_version": "1.0.0",
+        "commands": {{
+            "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+            "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+            "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+            "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+            "read":            {{ "argv": ["{bin}", "read"] }},
+            "update":          {{ "argv": ["{bin}", "update"] }},
+            "delete":          {{ "argv": ["{bin}", "delete"] }},
+            "validate":        {{ "argv": ["{bin}", "validate"] }}
+        }}
+    }}"#,
+        bin = env.tool_path.display()
+    ));
+    // write_config_pointing_to_tool computes SHA-256 of the current (bad) manifest and stores it
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["list-devices"]);
+    assert!(
+        out.status.success(),
+        "hash match should skip meta-schema; stderr: {}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn manifest_missing_is_hard_error() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    fs::remove_file(&env.manifest_path).unwrap();
+
+    let out = env.run_cmd(&["list-devices"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+// ─── Version mismatch (gaps) ───
+
+#[test]
+fn init_allows_minor_version_mismatch() {
+    let env = TestEnv::new();
+    env.write_manifest(
+        r#"{
+        "protocol_version": "1.1.0",
+        "commands": {
+            "tool-config-get": { "argv": ["t", "cg"] },
+            "tool-config-set": { "argv": ["t", "cs"] },
+            "create-workfile": { "argv": ["t", "w"] },
+            "list-devices":    { "argv": ["t", "d"] },
+            "add":             { "argv": ["t", "a"] },
+            "read":            { "argv": ["t", "r"] },
+            "update":          { "argv": ["t", "u"] },
+            "delete":          { "argv": ["t", "del"] },
+            "validate":        { "argv": ["t", "v"] }
+        }
+    }"#,
+    );
+    env.write_default_tool();
+
+    let out = env.run_init();
+    assert!(out.status.success(), "minor mismatch should be allowed; stderr: {}", stderr(&out));
+}
+
+#[test]
+fn init_allows_patch_version_mismatch() {
+    let env = TestEnv::new();
+    env.write_manifest(
+        r#"{
+        "protocol_version": "1.0.99",
+        "commands": {
+            "tool-config-get": { "argv": ["t", "cg"] },
+            "tool-config-set": { "argv": ["t", "cs"] },
+            "create-workfile": { "argv": ["t", "w"] },
+            "list-devices":    { "argv": ["t", "d"] },
+            "add":             { "argv": ["t", "a"] },
+            "read":            { "argv": ["t", "r"] },
+            "update":          { "argv": ["t", "u"] },
+            "delete":          { "argv": ["t", "del"] },
+            "validate":        { "argv": ["t", "v"] }
+        }
+    }"#,
+    );
+    env.write_default_tool();
+
+    let out = env.run_init();
+    assert!(out.status.success(), "patch mismatch should be allowed; stderr: {}", stderr(&out));
+}
+
+// ─── Init response fields ───
+
+#[test]
+fn init_missing_fields_and_config_complete() {
+    // Default fake tool returns workfile with value: null, required: true.
+    // Init always calls tool-config-get to compute missing_fields even with --no-interactive.
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+
+    let out = Command::new(attach_meta())
+        .args([
+            "--config",
+            env.config_path.to_str().unwrap(),
+            "--json",
+            "init",
+            env.tool_path.to_str().unwrap(),
+            "--no-interactive",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+
+    let missing: Vec<&str> = response["missing_fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert!(
+        missing.contains(&"workfile"),
+        "expected 'workfile' in missing_fields, got: {missing:?}"
+    );
+    assert_eq!(
+        response["config_complete"], false,
+        "config_complete must be false when required configs are unset"
+    );
+}
+
+// ─── Config commands ───
+
+#[test]
+fn tool_config_get_succeeds() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["tool-config-get"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    assert!(response["configs"].is_array());
+}
+
+#[test]
+fn tool_config_get_with_field_arg() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["tool-config-get", "workfile"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    assert!(
+        log.lines()
+            .any(|l| l.contains("config-get") && l.contains("workfile")),
+        "expected 'config-get workfile' in invocation log, got: {log}"
+    );
+}
+
+#[test]
+fn tool_config_set_missing_value_exits_2() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["tool-config-set", "workfile"]); // missing value arg
+    assert_eq!(out.status.code(), Some(2));
+}
+
+#[test]
+fn tool_config_set_succeeds() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["tool-config-set", "workfile", "/path/to/wf"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    assert!(
+        log.lines().any(|l| l.contains("config-set")
+            && l.contains("workfile")
+            && l.contains("/path/to/wf")),
+        "expected 'config-set workfile /path/to/wf' in invocation log, got: {log}"
+    );
+}
+
+// ─── CRUD gaps ───
+
+#[test]
+fn add_name_only_succeeds() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["add", "--name", "mydevice"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+}
+
+#[test]
+fn add_key_and_name_succeeds() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["add", "mykey", "--name", "mydevice"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let add_line = log.lines().find(|l| l.contains(" add ")).unwrap_or("");
+    assert!(add_line.contains("mykey"), "expected mykey: {add_line}");
+    assert!(add_line.contains("--name"), "expected --name: {add_line}");
+    assert!(add_line.contains("mydevice"), "expected mydevice: {add_line}");
+}
+
+#[test]
+fn add_response_includes_path() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["add", "my_device"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    let path = response["path"].as_array().expect("path should be an array");
+    assert!(!path.is_empty(), "path should be non-empty");
+}
+
+#[test]
+fn delete_no_args_returns_preview() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["delete"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert!(
+        response.get("node_count").is_some(),
+        "expected DeletePreview with node_count: {response}"
+    );
+}
+
+#[test]
+fn delete_force_no_args_deletes_all() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["delete", "--force"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    assert!(
+        response.get("node_count").is_none(),
+        "expected CommonResponse, not DeletePreview: {response}"
+    );
+}
+
+// ─── Unknown flag forwarding ───
+
+#[test]
+fn unknown_flag_treated_as_string_and_forwarded() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["read", "--undeclared-flag", "somevalue"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    assert!(
+        log.contains("--undeclared-flag") && log.contains("somevalue"),
+        "expected unknown flag forwarded to subtool: {log}"
+    );
+}
+
+// ─── Rename ───
+
+#[test]
+fn rename_native_invokes_subtool() {
+    let env = TestEnv::new();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "rename":          {{ "argv": ["{bin}", "rename"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_tool(
+        r#"
+    rename)
+        echo '{"ok":true,"message":"renamed","severity":"info"}'
+        exit 0
+        ;;
+"#,
+    );
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["rename", "my_node", "--to", "new_name"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let rename_line = log
+        .lines()
+        .find(|l| l.contains(" rename "))
+        .unwrap_or("");
+    assert!(rename_line.contains("my_node"), "expected my_node: {rename_line}");
+    assert!(rename_line.contains("--to"), "expected --to: {rename_line}");
+    assert!(rename_line.contains("new_name"), "expected new_name: {rename_line}");
+}
+
+#[test]
+fn rename_fallback_node_read_add_update_delete() {
+    let env = TestEnv::new();
+    // Default manifest has no rename — fallback activates.
+    // read "my_node" returns a Node, triggering node rename fallback.
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["rename", "my_node", "--to", "new_name"]);
+    assert!(
+        out.status.success(),
+        "stdout: {} stderr: {}",
+        stdout(&out),
+        stderr(&out)
+    );
+
+    let log = env.invocation_log();
+    let read_pos = log.find(" read").expect("fallback should call read");
+    let add_pos = log.find(" add").expect("fallback should call add");
+    let update_pos = log.find(" update").expect("fallback should call update");
+    let delete_pos = log.find(" delete").expect("fallback should call delete");
+    assert!(read_pos < add_pos, "read before add");
+    assert!(add_pos < update_pos, "add before update");
+    assert!(update_pos < delete_pos, "update before delete");
+    assert!(log.contains("--force"), "node rename delete must use --force");
+}
+
+#[test]
+fn rename_fallback_property_read_update_delete() {
+    let env = TestEnv::new();
+    // read "my_node temperature" returns a Property, triggering property rename fallback.
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["rename", "my_node", "temperature", "--to", "temp_c"]);
+    assert!(
+        out.status.success(),
+        "stdout: {} stderr: {}",
+        stdout(&out),
+        stderr(&out)
+    );
+
+    let log = env.invocation_log();
+    let read_pos = log.find(" read").expect("fallback should call read");
+    let update_pos = log.find(" update").expect("fallback should call update");
+    let delete_pos = log.find(" delete").expect("fallback should call delete");
+    assert!(read_pos < update_pos, "read before update");
+    assert!(update_pos < delete_pos, "update before delete");
+
+    // Property delete must NOT use --force (leaf/property deletes directly)
+    let delete_line = log.lines().rfind(|l| l.contains(" delete")).unwrap_or("");
+    assert!(
+        !delete_line.contains("--force"),
+        "property rename delete must not use --force: {delete_line}"
+    );
+}
+
+// ─── Alias ───
+
+fn write_alias_manifest_and_tool(env: &TestEnv) {
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "alias":           {{ "argv": ["{bin}", "alias"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_tool(
+        r#"
+    alias)
+        echo '{"ok":true,"message":"alias ok","severity":"info"}'
+        exit 0
+        ;;
+"#,
+    );
+}
+
+#[test]
+fn alias_with_invokes_subtool() {
+    let env = TestEnv::new();
+    write_alias_manifest_and_tool(&env);
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["alias", "my_node", "--with", "my_alias"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let alias_line = log.lines().find(|l| l.contains(" alias ")).unwrap_or("");
+    assert!(alias_line.contains("my_node"), "expected my_node: {alias_line}");
+    assert!(alias_line.contains("--with"), "expected --with: {alias_line}");
+    assert!(alias_line.contains("my_alias"), "expected my_alias: {alias_line}");
+}
+
+#[test]
+fn alias_remove_invokes_subtool() {
+    let env = TestEnv::new();
+    write_alias_manifest_and_tool(&env);
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["alias", "my_node", "--remove", "my_alias"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    let log = env.invocation_log();
+    let alias_line = log.lines().find(|l| l.contains(" alias ")).unwrap_or("");
+    assert!(alias_line.contains("my_node"), "expected my_node: {alias_line}");
+    assert!(alias_line.contains("--remove"), "expected --remove: {alias_line}");
+    assert!(alias_line.contains("my_alias"), "expected my_alias: {alias_line}");
+}
+
+#[test]
+fn alias_not_in_manifest_exits_2() {
+    let env = TestEnv::new();
+    env.write_default_manifest(); // no alias command
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["alias", "my_node", "--with", "x"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+// ─── __complete gaps ───
+
+#[test]
+fn complete_partial_subcommand_prefix_filter() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "re"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("read"), "expected 'read': {lines}");
+    assert!(lines.contains("rename"), "expected 'rename': {lines}");
+    assert!(!lines.contains("add"), "must not contain 'add': {lines}");
+    assert!(!lines.contains("validate"), "must not contain 'validate': {lines}");
+}
+
+#[test]
+fn complete_suggest_kind_completion() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    // Completing the kind argument for suggest — should call list-intelligence
+    let out = env.run_cmd(&["__complete", "--", "suggest", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("device-key"), "expected device-key: {lines}");
+    assert!(lines.contains("node-key"), "expected node-key: {lines}");
+
+    let log = env.invocation_log();
+    assert!(
+        log.contains("list-intelligence"),
+        "expected list-intelligence call in log: {log}"
+    );
+}
+
+#[test]
+fn complete_array_flag_suppresses_flag_names() {
+    // When the cursor is inside an array flag's value run and the manifest has a
+    // completions entry for that flag, step 3 (flag names) is suppressed so that
+    // flag names and value suggestions do not mix.
+    let env = TestEnv::new();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"], "completions": [{{ "arg": "to", "kind": "node-key" }}] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "list-intelligence": {{ "argv": ["{bin}", "list-intelligence"] }},
+    "suggest":         {{ "argv": ["{bin}", "suggest"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    // Inside --to array flag (has completion entry), partial is "" — step 3 is suppressed
+    let out = env.run_cmd(&["__complete", "--", "add", "--to", "soc", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+
+    // Step 4 runs suggest node-key → ad7124, ad5940
+    assert!(lines.contains("ad7124"), "expected ad7124: {lines}");
+    assert!(lines.contains("ad5940"), "expected ad5940: {lines}");
+
+    // Step 3 suppressed — flag names must not appear alongside value completions
+    assert!(
+        !lines.contains("--name"),
+        "flag names must be suppressed inside array flag with completion entry: {lines}"
+    );
+}
+
+// ─── suggest / list-intelligence direct ───
+
+#[test]
+fn list_intelligence_direct_invocation() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["list-intelligence"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    assert!(response["intelligence"].is_array());
+}
+
+#[test]
+fn suggest_direct_invocation() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["suggest", "device-key"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    assert!(response["suggestions"].is_array());
+}
+
+#[test]
+fn suggest_unadvertised_kind_exits_2() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["suggest", "totally-unknown-kind"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+// ─── move source path guard ───
+
+#[test]
+fn move_requires_source_path() {
+    let env = TestEnv::new();
+    env.write_default_manifest(); // no native move — fallback path
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["move", "--to", "new_parent"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "move without source path must exit 2; stderr: {}",
+        stderr(&out)
+    );
+}
