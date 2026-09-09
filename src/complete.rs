@@ -149,13 +149,22 @@ pub fn run_complete(
         return;
     }
 
-    // Collect preceding positional args (excluding partial)
-    let positional_context: Vec<String> = rest
-        .iter()
-        .take(rest.len().saturating_sub(1))
-        .filter(|a| !a.starts_with("--"))
-        .cloned()
-        .collect();
+    // Collect preceding positional args (excluding partial, flag names, and flag values)
+    let mut positional_context: Vec<String> = Vec::new();
+    let mut skip_next = false;
+    for arg in rest.iter().take(rest.len().saturating_sub(1)) {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if let Some(flag_name) = arg.strip_prefix("--") {
+            if !dynargs::is_bool_flag_in_schema(flag_name, cmd, mapping.args.as_ref()) {
+                skip_next = true;
+            }
+        } else {
+            positional_context.push(arg.clone());
+        }
+    }
 
     let suggest_mapping = match manifest.get_command(CommandName::Suggest) {
         Some(m) => m,

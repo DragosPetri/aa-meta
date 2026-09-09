@@ -890,6 +890,34 @@ fn complete_flag_value_via_suggest() {
     assert!(lines.contains("ad5940"), "missing ad5940: {lines}");
 }
 
+#[test]
+fn complete_positional_context_excludes_flag_values() {
+    // Regression test for M3: flag values must not be forwarded as positional context.
+    // The default manifest has completions: [{"arg": "add", "kind": "device-key"}]
+    // Invoking __complete -- add --key myval soc ""  should call:
+    //   suggest device-key soc          (positional "soc" only)
+    // NOT:
+    //   suggest device-key myval soc    (flag value "myval" incorrectly included)
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "add", "--key", "myval", "soc", ""]);
+    assert!(out.status.success());
+
+    let log = env.invocation_log();
+    let suggest_line = log
+        .lines()
+        .filter(|l| l.contains(" suggest "))
+        .last()
+        .unwrap_or("");
+    assert!(
+        suggest_line.ends_with("suggest device-key soc"),
+        "expected 'suggest device-key soc', got: {suggest_line}"
+    );
+}
+
 // ─── Move/rename fallback ───
 
 #[test]
