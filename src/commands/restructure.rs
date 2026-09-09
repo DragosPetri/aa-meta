@@ -94,8 +94,12 @@ fn run_move(
 
         // Update properties
         for prop in &node.properties {
-            let prop_path = format!("{} {}", node.key, prop.key);
-            let update_args = vec![prop_path, "--with".to_string(), prop.value.to_string()];
+            let update_args = vec![
+                node.key.clone(),
+                prop.key.clone(),
+                "--with".to_string(),
+                prop.value.to_string(),
+            ];
             transport::invoke(update_mapping, &update_args).map_err(|e| {
                 AttachMetaError::TransportError(format!(
                     "move fallback step 3 (update '{}') failed: {e}",
