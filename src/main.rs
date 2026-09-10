@@ -107,6 +107,7 @@ fn main() {
         None if has_fallback => {
             // Use a synthetic mapping for arg parsing; the handler will use the fallback workflow
             protocol::manifest::CommandMapping {
+                description: None,
                 argv: vec![],
                 args: None,
                 timeout_ms: None,

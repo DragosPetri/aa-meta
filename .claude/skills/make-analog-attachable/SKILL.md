@@ -59,6 +59,15 @@ Read `docs/schemas/manifest.schema.json` and walk the user through it. The meta-
 
 Help the user write a concrete manifest for their tool. For commands the tool already implements, wire the existing binary/subcommand into the manifest's `argv`. For commands that need new implementation, decide on the argv routing together with the user.
 
+**Command descriptions**: Encourage the user to add a `description` string to every `CommandMapping`. This is optional but important for agents — it tells attach-setup and other agents what the command does in the *context of this specific tool* (e.g. `"add"` on a pickle tool might say "Insert a new named object into the pickle store"). Generic descriptions ("Adds a device") are fine; tool-specific ones are better. Example:
+
+```json
+"add": {
+  "description": "Insert a new named object into the pickle store at the given path.",
+  "argv": ["attach-pickle", "add"]
+}
+```
+
 **Protocol-owned flags**: For each command being added to the manifest, read its base schema from `docs/schemas/command_base_schemas/<command>.schema.json` and tell the user what flags the protocol already provides. These are parsed by attach-meta and forwarded automatically — the tool must handle them but must NOT redeclare them in `args` (collisions are a hard error). The tool's `args` field is only for *additional* optional flags specific to the tool; omit it when the tool has none.
 
 **Suggest completions early**: Even if the user isn't planning to implement `suggest` yet, encourage adding `completions` hints as comments in the manifest so they're easy to wire up later. For example:

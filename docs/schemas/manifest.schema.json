@@ -39,6 +39,10 @@
       "required": ["argv"],
       "additionalProperties": false,
       "properties": {
+        "description": {
+          "description": "Human-readable description of what this command does in the context of this specific tool. Used by agents to explain commands to users when driving attach-meta interactions.",
+          "type": "string"
+        },
         "argv": {
           "description": "The argv prefix prepended by attach-meta when dispatching this command. First element is typically the binary name or path.",
           "type": "array",

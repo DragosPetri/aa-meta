@@ -175,6 +175,7 @@ mod tests {
 
     fn mapping(args: Option<Value>) -> CommandMapping {
         CommandMapping {
+            description: None,
             argv: vec!["tool".to_string(), "add".to_string()],
             args,
             timeout_ms: None,

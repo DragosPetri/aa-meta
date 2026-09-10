@@ -116,6 +116,8 @@ pub struct CompletionHint {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CommandMapping {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     pub argv: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<serde_json::Value>,
@@ -270,6 +272,7 @@ mod tests {
                         (
                             c.as_str().to_string(),
                             CommandMapping {
+                                description: None,
                                 argv: vec!["t".into()],
                                 args: None,
                                 timeout_ms: None,
@@ -287,6 +290,7 @@ mod tests {
         assert_manifest_valid(
             Some("/$defs/CommandMapping"),
             &CommandMapping {
+                description: Some("test description".into()),
                 argv: vec!["t".into()],
                 args: Some(serde_json::json!({})),
                 timeout_ms: Some(1),
