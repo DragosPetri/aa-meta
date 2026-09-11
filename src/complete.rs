@@ -49,6 +49,12 @@ pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path)
             if "completion".starts_with(subcommand.as_str()) {
                 println!("completion");
             }
+            if "list-intelligence".starts_with(subcommand.as_str()) {
+                println!("list-intelligence");
+            }
+            if "suggest".starts_with(subcommand.as_str()) {
+                println!("suggest");
+            }
             return;
         }
     };
@@ -392,6 +398,8 @@ fn print_command_list(manifest: Option<&Manifest>) {
     }
     println!("init");
     println!("completion");
+    println!("list-intelligence");
+    println!("suggest");
 }
 
 pub fn generate_completion_script(shell: &str) -> anyhow::Result<String> {
