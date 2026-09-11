@@ -1832,19 +1832,48 @@ fn alias_not_in_manifest_exits_2() {
 #[test]
 fn complete_partial_subcommand_prefix_filter() {
     let env = TestEnv::new();
-    env.write_default_manifest();
+    // Include optional "rename" so we can verify that optional commands present in
+    // the manifest DO participate in prefix matching.
+    let bin = env.tool_path.display();
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "rename":          {{ "argv": ["{bin}", "rename"] }}
+  }}
+}}"#
+    ));
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
     let out = env.run_cmd(&["__complete", "--", "re"]);
     assert!(out.status.success());
     let lines = stdout(&out);
+    // Both required "read" and optional "rename" declared in the manifest must appear.
     assert!(lines.contains("read"), "expected 'read': {lines}");
-    assert!(lines.contains("rename"), "expected 'rename': {lines}");
+    assert!(
+        lines.contains("rename"),
+        "expected 'rename' (declared in manifest): {lines}"
+    );
+    // Commands that don't match the prefix must not appear.
     assert!(!lines.contains("add"), "must not contain 'add': {lines}");
     assert!(
         !lines.contains("validate"),
         "must not contain 'validate': {lines}"
+    );
+    // Optional commands absent from this manifest must not appear.
+    assert!(
+        !lines.contains("move"),
+        "must not contain 'move' (not in manifest): {lines}"
     );
 }
 
@@ -2282,5 +2311,53 @@ fn complete_no_subcommand_includes_init() {
     assert!(
         lines.contains("init"),
         "expected 'init' in command list: {lines}"
+    );
+}
+
+#[test]
+fn complete_no_tool_excludes_tool_commands() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["__complete", "--"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("init"), "expected 'init': {lines}");
+    assert!(
+        lines.contains("completion"),
+        "expected 'completion': {lines}"
+    );
+    for cmd in &[
+        "add",
+        "read",
+        "update",
+        "delete",
+        "validate",
+        "tool-config-get",
+        "list-devices",
+    ] {
+        assert!(
+            !lines.contains(cmd),
+            "must not suggest '{cmd}' without a tool: {lines}"
+        );
+    }
+}
+
+#[test]
+fn complete_no_tool_partial_excludes_tool_commands() {
+    let env = NoToolEnv::new();
+    // "ad" would match "add" — must not be suggested without a tool
+    let out = env.run_cmd(&["__complete", "--", "ad"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        !lines.contains("add"),
+        "must not suggest 'add' without a tool: {lines}"
+    );
+    // "co" matches "completion" — must still appear
+    let out = env.run_cmd(&["__complete", "--", "co"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        lines.contains("completion"),
+        "expected 'completion' for partial 'co': {lines}"
     );
 }

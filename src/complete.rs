@@ -7,10 +7,13 @@ use crate::protocol::manifest::{CommandName, Manifest};
 use crate::transport;
 
 pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path) {
+    // Load manifest upfront — its command set drives which tool commands are available.
+    let manifest: Option<Manifest> = crate::config::try_load_manifest(config, config_path);
+
     // __complete -- <subcommand> [args...] <partial>
     // args is everything after "--"
     if args.is_empty() {
-        print_command_list();
+        print_command_list(manifest.as_ref());
         return;
     }
 
@@ -26,26 +29,27 @@ pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path)
         return;
     }
 
-    // Step 1: no subcommand content -> complete from command list
+    // Step 1: partial subcommand -> complete from manifest's declared command set
     let cmd = match CommandName::from_str(subcommand) {
         Some(c) => c,
         None => {
-            for name in CommandName::ALL {
-                let s = name.as_str();
-                if s.starts_with(subcommand.as_str()) {
-                    println!("{s}");
+            if let Some(ref m) = manifest {
+                for name in CommandName::ALL {
+                    let s = name.as_str();
+                    if s.starts_with(subcommand.as_str()) && m.commands.contains_key(s) {
+                        println!("{s}");
+                    }
                 }
             }
             if "init".starts_with(subcommand.as_str()) {
                 println!("init");
             }
+            if "completion".starts_with(subcommand.as_str()) {
+                println!("completion");
+            }
             return;
         }
     };
-
-    // Load manifest for completions (optional — meta-intelligence works without one)
-    let manifest: Option<Manifest> =
-        crate::config::try_load_manifest(config, config_path);
 
     // Step 2: suggest subcommand
     if cmd == CommandName::Suggest {
@@ -364,7 +368,10 @@ fn subcommand_positional_context(
     ctx
 }
 
-fn print_matching_suggestions(suggestions: &[crate::protocol::responses::Suggestion], partial: &str) {
+fn print_matching_suggestions(
+    suggestions: &[crate::protocol::responses::Suggestion],
+    partial: &str,
+) {
     for s in suggestions {
         if s.value.starts_with(partial) {
             println!("{}", s.value);
@@ -372,9 +379,14 @@ fn print_matching_suggestions(suggestions: &[crate::protocol::responses::Suggest
     }
 }
 
-fn print_command_list() {
-    for cmd in CommandName::ALL {
-        println!("{}", cmd.as_str());
+fn print_command_list(manifest: Option<&Manifest>) {
+    if let Some(m) = manifest {
+        for cmd in CommandName::ALL {
+            let s = cmd.as_str();
+            if m.commands.contains_key(s) {
+                println!("{s}");
+            }
+        }
     }
     println!("init");
     println!("completion");

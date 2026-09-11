@@ -108,9 +108,7 @@ fn main() {
     let has_fallback = matches!(cmd, CommandName::Move | CommandName::Rename);
     let mapping = match manifest.get_command(cmd) {
         Some(m) => m.clone(),
-        None if has_fallback => {
-            protocol::manifest::CommandMapping::default()
-        }
+        None if has_fallback => protocol::manifest::CommandMapping::default(),
         None => {
             exit_error(
                 AttachMetaError::ManifestError(format!(

@@ -22,20 +22,20 @@ fn run_list_intelligence(
 ) -> std::result::Result<serde_json::Value, AttachMetaError> {
     let meta = meta_intelligence::meta_intelligences();
 
-    let tool_intelligence =
-        if let Some(li_mapping) = tool_ctx.and_then(|m| m.get_command(CommandName::ListIntelligence))
-        {
-            let li_raw = transport::invoke(li_mapping, &[])?;
-            let li_response: ListIntelligenceResponse =
-                serde_json::from_value(li_raw).map_err(|e| {
-                    AttachMetaError::InternalError(format!(
-                        "failed to parse list-intelligence response: {e}"
-                    ))
-                })?;
-            li_response.intelligence
-        } else {
-            vec![]
-        };
+    let tool_intelligence = if let Some(li_mapping) =
+        tool_ctx.and_then(|m| m.get_command(CommandName::ListIntelligence))
+    {
+        let li_raw = transport::invoke(li_mapping, &[])?;
+        let li_response: ListIntelligenceResponse =
+            serde_json::from_value(li_raw).map_err(|e| {
+                AttachMetaError::InternalError(format!(
+                    "failed to parse list-intelligence response: {e}"
+                ))
+            })?;
+        li_response.intelligence
+    } else {
+        vec![]
+    };
 
     let merged = meta_intelligence::merge_intelligence(meta, tool_intelligence);
 
