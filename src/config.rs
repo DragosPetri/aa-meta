@@ -94,13 +94,5 @@ pub fn try_load_manifest(
         Some(t) => t,
         None => return Ok(None),
     };
-    crate::manifest_store::load_verified(&tool, config, config_path)
-        .map(|v| Some(v.manifest))
-}
-
-pub fn user_config_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("attach-meta")
-        .join("config.toml")
+    crate::manifest_store::load_verified(&tool, config, config_path).map(|v| Some(v.manifest))
 }

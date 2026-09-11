@@ -5,7 +5,7 @@ pub enum AttachMetaError {
     InputError(String),
     ManifestError(String),
     TransportError(String),
-    ProtocolError { response_json: serde_json::Value },
+    ProtocolError,
     InternalError(String),
 }
 
@@ -15,7 +15,7 @@ impl std::fmt::Display for AttachMetaError {
             Self::InputError(msg) => write!(f, "input error: {msg}"),
             Self::ManifestError(msg) => write!(f, "manifest error: {msg}"),
             Self::TransportError(msg) => write!(f, "transport error: {msg}"),
-            Self::ProtocolError { .. } => write!(f, "protocol error: tool returned ok:false"),
+            Self::ProtocolError => write!(f, "protocol error: tool returned ok:false"),
             Self::InternalError(msg) => write!(f, "internal error: {msg}"),
         }
     }
@@ -26,7 +26,7 @@ impl std::error::Error for AttachMetaError {}
 impl AttachMetaError {
     pub fn exit_code(&self) -> i32 {
         match self {
-            Self::ProtocolError { .. } => 1,
+            Self::ProtocolError => 1,
             _ => 2,
         }
     }
@@ -45,7 +45,7 @@ impl ErrorEnvelope {
             AttachMetaError::InputError(_) => "input",
             AttachMetaError::ManifestError(_) => "manifest",
             AttachMetaError::TransportError(_) => "transport",
-            AttachMetaError::ProtocolError { .. } => "protocol",
+            AttachMetaError::ProtocolError => "protocol",
             AttachMetaError::InternalError(_) => "internal",
         };
         ErrorEnvelope {

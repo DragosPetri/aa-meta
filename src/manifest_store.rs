@@ -10,8 +10,6 @@ use crate::schema;
 
 pub struct VerifiedManifest {
     pub manifest: Manifest,
-    pub hash: String,
-    pub hash_changed: bool,
 }
 
 pub fn load_verified(
@@ -55,11 +53,7 @@ pub fn load_verified(
         }
     }
 
-    Ok(VerifiedManifest {
-        manifest,
-        hash: new_hash,
-        hash_changed,
-    })
+    Ok(VerifiedManifest { manifest })
 }
 
 pub fn sha256_hex(content: &str) -> String {

@@ -8,7 +8,6 @@ use crate::protocol::manifest::{CommandMapping, CommandName};
 pub struct ParsedInput {
     pub flags_json: Value,
     pub positionals: Vec<String>,
-    pub forwarded_argv: Vec<String>,
 }
 
 pub fn collect_flag_names(cmd: CommandName, tool_args: Option<&Value>) -> Vec<String> {
@@ -43,9 +42,7 @@ pub fn parse_command_args(
 
     let mut flags: serde_json::Map<String, Value> = serde_json::Map::new();
     let mut positionals: Vec<String> = Vec::new();
-    let mut forwarded_argv: Vec<String> = mapping.argv.clone();
 
-    let known_flags = collect_flag_names(cmd, tool_args);
     // Check for collisions between base and tool args
     if let Some(ta) = tool_args {
         if let Some(base_props) = base.get("properties").and_then(|p| p.as_object()) {
@@ -78,15 +75,12 @@ pub fn parse_command_args(
 
             if is_bool {
                 flags.insert(flag_name.to_string(), json!(true));
-                forwarded_argv.push(arg.clone());
             } else if is_array {
                 // Consume all following non-flag tokens as array elements
                 let mut values: Vec<Value> = Vec::new();
-                forwarded_argv.push(arg.clone());
                 i += 1;
                 while i < raw_args.len() && !raw_args[i].starts_with("--") {
                     values.push(json!(raw_args[i].as_str()));
-                    forwarded_argv.push(raw_args[i].clone());
                     i += 1;
                 }
                 if values.is_empty() {
@@ -99,8 +93,6 @@ pub fn parse_command_args(
             } else if i + 1 < raw_args.len() {
                 i += 1;
                 flags.insert(flag_name.to_string(), json!(&raw_args[i]));
-                forwarded_argv.push(arg.clone());
-                forwarded_argv.push(raw_args[i].clone());
             } else {
                 return Err(AttachMetaError::InputError(format!(
                     "flag '--{flag_name}' requires a value"
@@ -108,7 +100,6 @@ pub fn parse_command_args(
             }
         } else {
             positionals.push(arg.clone());
-            forwarded_argv.push(arg.clone());
         }
         i += 1;
     }
@@ -116,7 +107,6 @@ pub fn parse_command_args(
     Ok(ParsedInput {
         flags_json: Value::Object(flags),
         positionals,
-        forwarded_argv,
     })
 }
 

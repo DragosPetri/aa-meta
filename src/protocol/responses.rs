@@ -175,6 +175,7 @@ pub struct DeletePreview {
     pub paths: Vec<Vec<String>>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum DeleteResponse {

@@ -69,6 +69,7 @@ impl CommandName {
         }
     }
 
+    #[cfg(test)]
     pub const REQUIRED: &[CommandName] = &[
         Self::ToolConfigGet,
         Self::ToolConfigSet,

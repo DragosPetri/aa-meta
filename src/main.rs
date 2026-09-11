@@ -139,13 +139,7 @@ fn main() {
     }
 
     // Dispatch
-    let ctx = commands::CommandContext {
-        manifest,
-        tool_binary: tool.binary.unwrap_or_default(),
-        json_output: cli.json,
-        app_config: config,
-        config_path,
-    };
+    let ctx = commands::CommandContext { manifest };
 
     let result = commands::dispatch(cmd, &parsed.positionals, &parsed.flags_json, &ctx);
     exit_with_result(result.map(|v| (cmd, v)), cli.json);

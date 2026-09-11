@@ -33,7 +33,7 @@ fn run_list_intelligence(
                 ))
             })?;
         if !li_response.ok {
-            return Err(AttachMetaError::ProtocolError { response_json: li_raw });
+            return Err(AttachMetaError::ProtocolError);
         }
         li_response.intelligence
     } else {

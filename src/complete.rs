@@ -8,7 +8,8 @@ use crate::transport;
 
 pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path) {
     // Load manifest upfront — its command set drives which tool commands are available.
-    let manifest: Option<Manifest> = crate::config::try_load_manifest(config, config_path).unwrap_or(None);
+    let manifest: Option<Manifest> =
+        crate::config::try_load_manifest(config, config_path).unwrap_or(None);
 
     // __complete -- <subcommand> [args...] <partial>
     // args is everything after "--"
@@ -468,48 +469,4 @@ end
 complete -c attach-meta -f -a "(__attach_meta_completions)"
 "#
     .to_string()
-}
-
-pub fn setup_completions(shell: &str) -> anyhow::Result<()> {
-    let path = completion_path(shell)?;
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let content = generate_completion_script(shell)?;
-    std::fs::write(&path, content)?;
-    eprintln!("Installed {shell} completions to {}", path.display());
-    maybe_print_hint(shell, &path);
-    Ok(())
-}
-
-fn completion_path(shell: &str) -> anyhow::Result<std::path::PathBuf> {
-    let home =
-        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
-
-    let path = match shell {
-        "bash" => home.join(".local/share/bash-completion/completions/attach-meta"),
-        "zsh" => home.join(".zsh/completions/_attach-meta"),
-        "fish" => dirs::config_dir()
-            .unwrap_or_else(|| home.join(".config"))
-            .join("fish/completions/attach-meta.fish"),
-        other => anyhow::bail!("unsupported shell for --setup-completions: {other}"),
-    };
-    Ok(path)
-}
-
-fn maybe_print_hint(shell: &str, path: &Path) {
-    match shell {
-        "zsh" => {
-            let dir = path.parent().unwrap().display().to_string();
-            eprintln!("Hint: ensure {dir} is in your fpath before compinit, e.g.:");
-            eprintln!("  fpath=({dir} $fpath)");
-            eprintln!("  autoload -Uz compinit && compinit");
-        }
-        "bash" => {
-            eprintln!("Hint: restart your shell or run: source {}", path.display());
-        }
-        _ => {}
-    }
 }

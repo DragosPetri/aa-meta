@@ -7,16 +7,11 @@ pub mod restructure;
 pub mod validate;
 pub mod workspace;
 
-use crate::config::AppConfig;
 use crate::error::AttachMetaError;
 use crate::protocol::manifest::{CommandName, Manifest};
 
 pub struct CommandContext {
     pub manifest: Manifest,
-    pub tool_binary: String,
-    pub json_output: bool,
-    pub app_config: AppConfig,
-    pub config_path: std::path::PathBuf,
 }
 
 pub fn dispatch(
