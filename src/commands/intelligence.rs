@@ -27,11 +27,14 @@ fn run_list_intelligence(
     {
         let li_raw = transport::invoke(li_mapping, &[])?;
         let li_response: ListIntelligenceResponse =
-            serde_json::from_value(li_raw).map_err(|e| {
+            serde_json::from_value(li_raw.clone()).map_err(|e| {
                 AttachMetaError::InternalError(format!(
                     "failed to parse list-intelligence response: {e}"
                 ))
             })?;
+        if !li_response.ok {
+            return Err(AttachMetaError::ProtocolError { response_json: li_raw });
+        }
         li_response.intelligence
     } else {
         vec![]
