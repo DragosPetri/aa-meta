@@ -5,6 +5,7 @@ mod config;
 mod dynargs;
 mod error;
 mod manifest_store;
+mod meta_intelligence;
 mod prompt;
 mod protocol;
 mod render;
@@ -48,6 +49,12 @@ fn main() {
             exit_with_result(result, cli.json);
             return;
         }
+        "list-intelligence" | "suggest" => {
+            let cmd = CommandName::from_str(command_str).unwrap();
+            let result = handle_intelligence(cmd, rest, cli.json);
+            exit_with_result(result, cli.json);
+            return;
+        }
         _ => {}
     }
 
@@ -73,9 +80,7 @@ fn main() {
         .default_tool
         .as_deref()
         .unwrap_or_else(|| {
-            eprintln!(
-                "attach-meta: no tool specified — set default_tool in .attach-meta.toml"
-            );
+            eprintln!("attach-meta: no tool specified — set default_tool in .attach-meta.toml");
             std::process::exit(2);
         })
         .to_string();
@@ -104,14 +109,7 @@ fn main() {
     let mapping = match manifest.get_command(cmd) {
         Some(m) => m.clone(),
         None if has_fallback => {
-            // Use a synthetic mapping for arg parsing; the handler will use the fallback workflow
-            protocol::manifest::CommandMapping {
-                description: None,
-                argv: vec![],
-                args: None,
-                timeout_ms: None,
-                completions: None,
-            }
+            protocol::manifest::CommandMapping::default()
         }
         None => {
             exit_error(
@@ -188,6 +186,38 @@ fn handle_init(
     Ok((CommandName::ToolConfigGet, response))
 }
 
+fn handle_intelligence(
+    cmd: CommandName,
+    rest: &[String],
+    _json_mode: bool,
+) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
+    let (mut app_config, config_path) = config::load_config()
+        .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
+
+    let manifest = config::try_load_manifest(&mut app_config, &config_path);
+
+    // Phase 2 parse: use tool mapping if available, synthetic empty mapping otherwise
+    let tool_mapping = manifest.as_ref().and_then(|m| m.get_command(cmd)).cloned();
+
+    let mapping = tool_mapping.unwrap_or_default();
+
+    let parsed = dynargs::parse_command_args(cmd, &mapping, rest)?;
+
+    let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
+    let mut validation_flags = parsed.flags_json.clone();
+    inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
+    schema::validate_input(&eff_schema, &validation_flags)?;
+
+    let response = commands::intelligence::run(
+        cmd,
+        &parsed.positionals,
+        &parsed.flags_json,
+        manifest.as_ref(),
+    )?;
+
+    Ok((cmd, response))
+}
+
 fn handle_completion(rest: &[String]) {
     if rest.is_empty() {
         eprintln!("Usage: attach-meta completion <bash|zsh|fish>");
@@ -242,11 +272,7 @@ fn exit_error(err: AttachMetaError, json_mode: bool) -> ! {
 //
 // Array x-positionals consume all remaining positionals (e.g. a variadic path).
 // String x-positionals consume one positional each, in property-declaration order.
-fn inject_x_positionals(
-    cmd: CommandName,
-    positionals: &[String],
-    flags: &mut serde_json::Value,
-) {
+fn inject_x_positionals(cmd: CommandName, positionals: &[String], flags: &mut serde_json::Value) {
     let base = protocol::base_schema::base_schema(cmd);
     let props = match base.get("properties").and_then(|p| p.as_object()) {
         Some(p) => p,

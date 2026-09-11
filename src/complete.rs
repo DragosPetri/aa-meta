@@ -2,15 +2,11 @@ use std::path::Path;
 
 use crate::config::AppConfig;
 use crate::dynargs;
-use crate::manifest_store;
+use crate::meta_intelligence;
 use crate::protocol::manifest::{CommandName, Manifest};
 use crate::transport;
 
-pub fn run_complete(
-    args: &[String],
-    config: &mut AppConfig,
-    config_path: &Path,
-) {
+pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path) {
     // __complete -- <subcommand> [args...] <partial>
     // args is everything after "--"
     if args.is_empty() {
@@ -22,6 +18,14 @@ pub fn run_complete(
     let rest = &args[1..];
     let partial = rest.last().map(|s| s.as_str()).unwrap_or("");
 
+    // Handle init completions via meta-intelligence
+    if subcommand == "init" {
+        if let Ok(suggestions) = meta_intelligence::meta_suggest("attachable", &[]) {
+            print_matching_suggestions(&suggestions, partial);
+        }
+        return;
+    }
+
     // Step 1: no subcommand content -> complete from command list
     let cmd = match CommandName::from_str(subcommand) {
         Some(c) => c,
@@ -32,31 +36,33 @@ pub fn run_complete(
                     println!("{s}");
                 }
             }
+            if "init".starts_with(subcommand.as_str()) {
+                println!("init");
+            }
             return;
         }
     };
 
-    // Load manifest for completions
-    let tool_name = config.meta.default_tool.as_deref();
-    let tool_name = match tool_name {
-        Some(n) => n.to_string(),
-        None => return,
-    };
-    let tool = match config.find_tool(&tool_name) {
-        Some(t) => t.clone(),
-        None => return,
-    };
-
-    let manifest = match manifest_store::load_verified(&tool, config, config_path) {
-        Ok(v) => v.manifest,
-        Err(_) => return,
-    };
+    // Load manifest for completions (optional — meta-intelligence works without one)
+    let manifest: Option<Manifest> =
+        crate::config::try_load_manifest(config, config_path);
 
     // Step 2: suggest subcommand
     if cmd == CommandName::Suggest {
-        handle_suggest_completion(&manifest, rest, &tool_name, config, config_path);
+        handle_suggest_completion(manifest.as_ref(), rest);
         return;
     }
+
+    // list-intelligence has no completable args
+    if cmd == CommandName::ListIntelligence {
+        return;
+    }
+
+    // All other commands require a manifest
+    let manifest = match manifest {
+        Some(m) => m,
+        None => return,
+    };
 
     let mapping = match manifest.get_command(cmd) {
         Some(m) => m,
@@ -156,6 +162,14 @@ pub fn run_complete(
     };
 
     // Steps 4-5: check if kind is advertised and call suggest
+    // Meta kinds are handled locally
+    if meta_intelligence::is_meta_kind(kind) {
+        if let Ok(suggestions) = meta_intelligence::meta_suggest(kind, &suggest_context) {
+            print_matching_suggestions(&suggestions, partial);
+        }
+        return;
+    }
+
     let li_mapping = match manifest.get_command(CommandName::ListIntelligence) {
         Some(m) => m,
         None => return,
@@ -202,29 +216,19 @@ pub fn run_complete(
     }
 }
 
-fn handle_suggest_completion(
-    manifest: &Manifest,
-    rest: &[String],
-    _tool_name: &str,
-    _config: &AppConfig,
-    _config_path: &Path,
-) {
-    let li_mapping = match manifest.get_command(CommandName::ListIntelligence) {
-        Some(m) => m,
-        None => return,
-    };
+fn handle_suggest_completion(manifest: Option<&Manifest>, rest: &[String]) {
+    let meta = meta_intelligence::meta_intelligences();
 
-    let li_response = match transport::invoke(li_mapping, &[]) {
-        Ok(v) => v,
-        Err(_) => return,
-    };
+    let tool_intelligence: Vec<crate::protocol::responses::Intelligence> = manifest
+        .and_then(|m| m.get_command(CommandName::ListIntelligence))
+        .and_then(|li_mapping| transport::invoke(li_mapping, &[]).ok())
+        .and_then(|li_response| {
+            serde_json::from_value(li_response.get("intelligence").cloned().unwrap_or_default())
+                .ok()
+        })
+        .unwrap_or_default();
 
-    let intelligence: Vec<crate::protocol::responses::Intelligence> = match serde_json::from_value(
-        li_response.get("intelligence").cloned().unwrap_or_default(),
-    ) {
-        Ok(v) => v,
-        Err(_) => return,
-    };
+    let intelligence = meta_intelligence::merge_intelligence(meta, tool_intelligence);
 
     // Step 2a: completing the kind (first positional)
     if rest.is_empty() || (rest.len() == 1) {
@@ -256,12 +260,22 @@ fn handle_suggest_completion(
         None => return,
     };
 
+    // Meta kinds are handled locally
+    if meta_intelligence::is_meta_kind(arg_kind) {
+        let partial = rest.last().map(|s| s.as_str()).unwrap_or("");
+        let preceding: Vec<String> = rest[1..rest.len().saturating_sub(1)].to_vec();
+        if let Ok(suggestions) = meta_intelligence::meta_suggest(arg_kind, &preceding) {
+            print_matching_suggestions(&suggestions, partial);
+        }
+        return;
+    }
+
     let advertised = intelligence.iter().any(|i| i.kind == *arg_kind);
     if !advertised {
         return;
     }
 
-    let suggest_mapping = match manifest.get_command(CommandName::Suggest) {
+    let suggest_mapping = match manifest.and_then(|m| m.get_command(CommandName::Suggest)) {
         Some(m) => m,
         None => return,
     };
@@ -350,10 +364,19 @@ fn subcommand_positional_context(
     ctx
 }
 
+fn print_matching_suggestions(suggestions: &[crate::protocol::responses::Suggestion], partial: &str) {
+    for s in suggestions {
+        if s.value.starts_with(partial) {
+            println!("{}", s.value);
+        }
+    }
+}
+
 fn print_command_list() {
     for cmd in CommandName::ALL {
         println!("{}", cmd.as_str());
     }
+    println!("init");
     println!("completion");
 }
 

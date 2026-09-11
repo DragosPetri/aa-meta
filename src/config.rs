@@ -81,6 +81,20 @@ fn default_project_config_path() -> PathBuf {
         .join(".attach-meta.toml")
 }
 
+pub fn try_load_manifest(
+    config: &mut AppConfig,
+    config_path: &Path,
+) -> Option<crate::protocol::manifest::Manifest> {
+    let tool = config
+        .meta
+        .default_tool
+        .as_deref()
+        .and_then(|name| config.find_tool(name).cloned())?;
+    crate::manifest_store::load_verified(&tool, config, config_path)
+        .ok()
+        .map(|v| v.manifest)
+}
+
 pub fn user_config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))

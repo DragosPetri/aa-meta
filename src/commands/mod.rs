@@ -43,7 +43,7 @@ pub fn dispatch(
             pipeline::run(cmd, positionals, flags, ctx)
         }
         CommandName::ListIntelligence | CommandName::Suggest => {
-            intelligence::run(cmd, positionals, flags, ctx)
+            unreachable!("intelligence commands are handled directly in main")
         }
     }
 }

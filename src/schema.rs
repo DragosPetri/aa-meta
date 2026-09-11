@@ -209,7 +209,10 @@ mod tests {
         let err = validate_manifest(&m).unwrap_err();
         match err {
             AttachMetaError::ManifestError(msg) => {
-                assert!(msg.contains("flag names must not equal their command name"), "got: {msg}");
+                assert!(
+                    msg.contains("flag names must not equal their command name"),
+                    "got: {msg}"
+                );
             }
             other => panic!("expected ManifestError, got: {other:?}"),
         }

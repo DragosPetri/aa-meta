@@ -189,11 +189,7 @@ manifest_sha256 = "{hash}"
     fn run_init(&self) -> std::process::Output {
         Command::new(attach_meta())
             .current_dir(self.dir.path())
-            .args([
-                "init",
-                self.tool_path.to_str().unwrap(),
-                "--no-interactive",
-            ])
+            .args(["init", self.tool_path.to_str().unwrap(), "--no-interactive"])
             .output()
             .unwrap()
     }
@@ -235,6 +231,42 @@ fn sha256_hex(content: &str) -> String {
 
 fn stdout(out: &std::process::Output) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
+}
+
+struct NoToolEnv {
+    dir: tempfile::TempDir,
+}
+
+impl NoToolEnv {
+    fn new() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        Self { dir }
+    }
+
+    fn run_cmd(&self, args: &[&str]) -> std::process::Output {
+        let mut cmd = Command::new(attach_meta());
+        cmd.current_dir(self.dir.path());
+        cmd.args(args);
+        cmd.output().unwrap()
+    }
+
+    fn run_json(&self, args: &[&str]) -> std::process::Output {
+        let mut cmd = Command::new(attach_meta());
+        cmd.current_dir(self.dir.path());
+        cmd.args(["--json"]);
+        cmd.args(args);
+        cmd.output().unwrap()
+    }
+
+    fn run_cmd_with_path(&self, args: &[&str], extra_path: &Path) -> std::process::Output {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", extra_path.display(), current_path);
+        let mut cmd = Command::new(attach_meta());
+        cmd.current_dir(self.dir.path());
+        cmd.env("PATH", new_path);
+        cmd.args(args);
+        cmd.output().unwrap()
+    }
 }
 
 fn stderr(out: &std::process::Output) -> String {
@@ -781,7 +813,10 @@ fn complete_subcommand_suggests_flags() {
     let out = env.run_cmd(&["__complete", "--", "add"]);
     assert!(out.status.success());
     let lines = stdout(&out);
-    assert!(!lines.contains("--key"), "--key must not appear (it's positional): {lines}");
+    assert!(
+        !lines.contains("--key"),
+        "--key must not appear (it's positional): {lines}"
+    );
     assert!(lines.contains("--name"), "missing --name: {lines}");
     assert!(lines.contains("--to"), "missing --to: {lines}");
     assert!(lines.contains("--bus_id"), "missing --bus_id: {lines}");
@@ -820,10 +855,7 @@ fn complete_partial_flag_filters() {
         !lines.contains("--bus_id"),
         "should not contain --bus_id: {lines}"
     );
-    assert!(
-        !lines.contains("--to"),
-        "should not contain --to: {lines}"
-    );
+    assert!(!lines.contains("--to"), "should not contain --to: {lines}");
 }
 
 #[test]
@@ -1040,14 +1072,14 @@ fn complete_array_flag_no_entry_suggests_flags() {
 
     let lines = stdout(&out);
     // Should suggest flags, not invoke suggest with node-key context
-    assert!(lines.contains("--name"), "expected --name in flag suggestions: {lines}");
+    assert!(
+        lines.contains("--name"),
+        "expected --name in flag suggestions: {lines}"
+    );
 
     // No suggest invocation for array-flag context
     let log = env.invocation_log();
-    let suggest_calls: Vec<&str> = log
-        .lines()
-        .filter(|l| l.contains(" suggest "))
-        .collect();
+    let suggest_calls: Vec<&str> = log.lines().filter(|l| l.contains(" suggest ")).collect();
     assert!(
         suggest_calls.is_empty(),
         "expected no suggest calls when array flag has no completion entry, got: {suggest_calls:?}"
@@ -1348,7 +1380,11 @@ fn init_allows_minor_version_mismatch() {
     env.write_default_tool();
 
     let out = env.run_init();
-    assert!(out.status.success(), "minor mismatch should be allowed; stderr: {}", stderr(&out));
+    assert!(
+        out.status.success(),
+        "minor mismatch should be allowed; stderr: {}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -1373,7 +1409,11 @@ fn init_allows_patch_version_mismatch() {
     env.write_default_tool();
 
     let out = env.run_init();
-    assert!(out.status.success(), "patch mismatch should be allowed; stderr: {}", stderr(&out));
+    assert!(
+        out.status.success(),
+        "patch mismatch should be allowed; stderr: {}",
+        stderr(&out)
+    );
 }
 
 // ─── Init response fields ───
@@ -1510,7 +1550,10 @@ fn add_key_and_name_succeeds() {
     let add_line = log.lines().find(|l| l.contains(" add ")).unwrap_or("");
     assert!(add_line.contains("mykey"), "expected mykey: {add_line}");
     assert!(add_line.contains("--name"), "expected --name: {add_line}");
-    assert!(add_line.contains("mydevice"), "expected mydevice: {add_line}");
+    assert!(
+        add_line.contains("mydevice"),
+        "expected mydevice: {add_line}"
+    );
 }
 
 #[test]
@@ -1523,7 +1566,9 @@ fn add_response_includes_path() {
     let out = env.run_json(&["add", "my_device"]);
     assert!(out.status.success(), "stderr: {}", stderr(&out));
     let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
-    let path = response["path"].as_array().expect("path should be an array");
+    let path = response["path"]
+        .as_array()
+        .expect("path should be an array");
     assert!(!path.is_empty(), "path should be non-empty");
 }
 
@@ -1616,13 +1661,16 @@ fn rename_native_invokes_subtool() {
     assert!(out.status.success(), "stderr: {}", stderr(&out));
 
     let log = env.invocation_log();
-    let rename_line = log
-        .lines()
-        .find(|l| l.contains(" rename "))
-        .unwrap_or("");
-    assert!(rename_line.contains("my_node"), "expected my_node: {rename_line}");
+    let rename_line = log.lines().find(|l| l.contains(" rename ")).unwrap_or("");
+    assert!(
+        rename_line.contains("my_node"),
+        "expected my_node: {rename_line}"
+    );
     assert!(rename_line.contains("--to"), "expected --to: {rename_line}");
-    assert!(rename_line.contains("new_name"), "expected new_name: {rename_line}");
+    assert!(
+        rename_line.contains("new_name"),
+        "expected new_name: {rename_line}"
+    );
 }
 
 #[test]
@@ -1650,7 +1698,10 @@ fn rename_fallback_node_read_add_update_delete() {
     assert!(read_pos < add_pos, "read before add");
     assert!(add_pos < update_pos, "add before update");
     assert!(update_pos < delete_pos, "update before delete");
-    assert!(log.contains("--force"), "node rename delete must use --force");
+    assert!(
+        log.contains("--force"),
+        "node rename delete must use --force"
+    );
 }
 
 #[test]
@@ -1726,9 +1777,18 @@ fn alias_with_invokes_subtool() {
 
     let log = env.invocation_log();
     let alias_line = log.lines().find(|l| l.contains(" alias ")).unwrap_or("");
-    assert!(alias_line.contains("my_node"), "expected my_node: {alias_line}");
-    assert!(alias_line.contains("--with"), "expected --with: {alias_line}");
-    assert!(alias_line.contains("my_alias"), "expected my_alias: {alias_line}");
+    assert!(
+        alias_line.contains("my_node"),
+        "expected my_node: {alias_line}"
+    );
+    assert!(
+        alias_line.contains("--with"),
+        "expected --with: {alias_line}"
+    );
+    assert!(
+        alias_line.contains("my_alias"),
+        "expected my_alias: {alias_line}"
+    );
 }
 
 #[test]
@@ -1742,9 +1802,18 @@ fn alias_remove_invokes_subtool() {
 
     let log = env.invocation_log();
     let alias_line = log.lines().find(|l| l.contains(" alias ")).unwrap_or("");
-    assert!(alias_line.contains("my_node"), "expected my_node: {alias_line}");
-    assert!(alias_line.contains("--remove"), "expected --remove: {alias_line}");
-    assert!(alias_line.contains("my_alias"), "expected my_alias: {alias_line}");
+    assert!(
+        alias_line.contains("my_node"),
+        "expected my_node: {alias_line}"
+    );
+    assert!(
+        alias_line.contains("--remove"),
+        "expected --remove: {alias_line}"
+    );
+    assert!(
+        alias_line.contains("my_alias"),
+        "expected my_alias: {alias_line}"
+    );
 }
 
 #[test]
@@ -1773,7 +1842,10 @@ fn complete_partial_subcommand_prefix_filter() {
     assert!(lines.contains("read"), "expected 'read': {lines}");
     assert!(lines.contains("rename"), "expected 'rename': {lines}");
     assert!(!lines.contains("add"), "must not contain 'add': {lines}");
-    assert!(!lines.contains("validate"), "must not contain 'validate': {lines}");
+    assert!(
+        !lines.contains("validate"),
+        "must not contain 'validate': {lines}"
+    );
 }
 
 #[test]
@@ -1897,5 +1969,318 @@ fn move_requires_source_path() {
         Some(2),
         "move without source path must exit 2; stderr: {}",
         stderr(&out)
+    );
+}
+
+// ─── meta-intelligence ───
+
+#[test]
+fn meta_list_intelligence_no_tool() {
+    let env = NoToolEnv::new();
+    let out = env.run_json(&["list-intelligence"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    let intelligence = response["intelligence"].as_array().unwrap();
+    assert!(
+        intelligence.iter().any(|i| i["kind"] == "attachable"),
+        "expected 'attachable' in intelligence: {intelligence:?}"
+    );
+}
+
+#[test]
+fn meta_list_intelligence_no_tool_human_output() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["list-intelligence"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let err = stderr(&out);
+    assert!(
+        err.contains("attachable"),
+        "expected 'attachable' in human output: {err}"
+    );
+}
+
+#[test]
+fn meta_suggest_attachable_no_tool() {
+    let env = NoToolEnv::new();
+    let bin_dir = tempfile::tempdir().unwrap();
+
+    // Create fake attach-* binaries
+    let fake1 = bin_dir.path().join("attach-foo");
+    let fake2 = bin_dir.path().join("attach-bar");
+    let not_attach = bin_dir.path().join("other-tool");
+    fs::write(&fake1, "#!/bin/sh\n").unwrap();
+    fs::write(&fake2, "#!/bin/sh\n").unwrap();
+    fs::write(&not_attach, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&fake1, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&fake2, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&not_attach, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let out = env.run_cmd_with_path(&["--json", "suggest", "attachable"], bin_dir.path());
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], true);
+    let suggestions = response["suggestions"].as_array().unwrap();
+    let values: Vec<&str> = suggestions
+        .iter()
+        .map(|s| s["value"].as_str().unwrap())
+        .collect();
+    assert!(
+        values.contains(&"attach-bar"),
+        "expected attach-bar: {values:?}"
+    );
+    assert!(
+        values.contains(&"attach-foo"),
+        "expected attach-foo: {values:?}"
+    );
+    assert!(
+        !values.contains(&"other-tool"),
+        "should not contain other-tool: {values:?}"
+    );
+    assert!(
+        !values.contains(&"attach-meta"),
+        "should not contain attach-meta: {values:?}"
+    );
+}
+
+#[test]
+fn meta_suggest_unknown_kind_no_tool_exits_2() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["suggest", "totally-unknown"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "suggest unknown kind without tool should exit 2; stderr: {}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn meta_suggest_tool_kind_no_tool_exits_2() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["suggest", "device-key"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "suggest tool-only kind without tool should exit 2; stderr: {}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn meta_intelligence_merges_with_tool() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["list-intelligence"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    let intelligence = response["intelligence"].as_array().unwrap();
+    let kinds: Vec<&str> = intelligence
+        .iter()
+        .map(|i| i["kind"].as_str().unwrap())
+        .collect();
+    assert!(
+        kinds.contains(&"attachable"),
+        "expected 'attachable' from meta: {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"device-key"),
+        "expected 'device-key' from tool: {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"node-key"),
+        "expected 'node-key' from tool: {kinds:?}"
+    );
+}
+
+#[test]
+fn meta_suggest_attachable_with_tool_uses_meta() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let bin_dir = tempfile::tempdir().unwrap();
+    let fake = bin_dir.path().join("attach-test");
+    fs::write(&fake, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", bin_dir.path().display(), current_path);
+    let out = Command::new(attach_meta())
+        .current_dir(env.dir.path())
+        .env("PATH", new_path)
+        .args(["--json", "suggest", "attachable"])
+        .output()
+        .unwrap();
+
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    let suggestions = response["suggestions"].as_array().unwrap();
+    let values: Vec<&str> = suggestions
+        .iter()
+        .map(|s| s["value"].as_str().unwrap())
+        .collect();
+    assert!(
+        values.contains(&"attach-test"),
+        "expected attach-test in meta suggestions: {values:?}"
+    );
+
+    // Should NOT have called the tool's suggest — check invocation log
+    let log = env.invocation_log();
+    assert!(
+        !log.contains(" suggest "),
+        "suggest attachable should be handled by meta, not tool: {log}"
+    );
+}
+
+#[test]
+fn meta_intelligence_collision_warns() {
+    let env = TestEnv::new();
+    // Tool that returns "attachable" as one of its intelligence kinds (collision)
+    env.write_tool(
+        r#"
+    list-intelligence)
+        echo '{"ok":true,"message":"intelligence","severity":"info","intelligence":[{"kind":"attachable","args":[]},{"kind":"device-key","args":[]}]}'
+        exit 0
+        ;;
+    suggest)
+        shift
+        echo '{"ok":true,"message":"suggestions","severity":"info","suggestions":[{"value":"tool-value"}]}'
+        exit 0
+        ;;"#,
+    );
+
+    // Manifest with list-intelligence and suggest but NO default handlers
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "list-intelligence": {{ "argv": ["{bin}", "list-intelligence"] }},
+    "suggest":         {{ "argv": ["{bin}", "suggest"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_json(&["list-intelligence"]);
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+
+    // Check warning on stderr
+    let err = stderr(&out);
+    assert!(
+        err.contains("warning") && err.contains("attachable"),
+        "expected collision warning about 'attachable' on stderr: {err}"
+    );
+
+    // Meta version should be preferred
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    let intelligence = response["intelligence"].as_array().unwrap();
+    let kinds: Vec<&str> = intelligence
+        .iter()
+        .map(|i| i["kind"].as_str().unwrap())
+        .collect();
+    assert!(
+        kinds.contains(&"attachable"),
+        "meta 'attachable' should be present: {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"device-key"),
+        "tool 'device-key' should be present: {kinds:?}"
+    );
+
+    // Only one "attachable" (meta wins, tool's is dropped)
+    let attachable_count = kinds.iter().filter(|k| **k == "attachable").count();
+    assert_eq!(
+        attachable_count, 1,
+        "should have exactly one 'attachable', not duplicated"
+    );
+}
+
+#[test]
+fn complete_init_lists_attachables() {
+    let env = NoToolEnv::new();
+    let bin_dir = tempfile::tempdir().unwrap();
+
+    let fake = bin_dir.path().join("attach-example");
+    fs::write(&fake, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let out = env.run_cmd_with_path(&["__complete", "--", "init", ""], bin_dir.path());
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        lines.contains("attach-example"),
+        "expected attach-example in init completions: {lines}"
+    );
+}
+
+#[test]
+fn complete_init_filters_by_prefix() {
+    let env = NoToolEnv::new();
+    let bin_dir = tempfile::tempdir().unwrap();
+
+    let fake1 = bin_dir.path().join("attach-alpha");
+    let fake2 = bin_dir.path().join("attach-beta");
+    fs::write(&fake1, "#!/bin/sh\n").unwrap();
+    fs::write(&fake2, "#!/bin/sh\n").unwrap();
+    fs::set_permissions(&fake1, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&fake2, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let out = env.run_cmd_with_path(&["__complete", "--", "init", "attach-a"], bin_dir.path());
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        lines.contains("attach-alpha"),
+        "expected attach-alpha: {lines}"
+    );
+    assert!(
+        !lines.contains("attach-beta"),
+        "attach-beta should be filtered out: {lines}"
+    );
+}
+
+#[test]
+fn complete_suggest_includes_meta_kinds() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["__complete", "--", "suggest", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        lines.contains("attachable"),
+        "expected 'attachable' in suggest kind completions: {lines}"
+    );
+    assert!(
+        lines.contains("device-key"),
+        "expected 'device-key' in suggest kind completions: {lines}"
+    );
+}
+
+#[test]
+fn complete_no_subcommand_includes_init() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["__complete", "--"]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(
+        lines.contains("init"),
+        "expected 'init' in command list: {lines}"
     );
 }
