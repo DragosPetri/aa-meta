@@ -1086,50 +1086,48 @@ fn complete_array_flag_no_entry_suggests_flags() {
     );
 }
 
-// ─── Move/rename fallback ───
+// ─── Move/rename not in manifest ───
 
 #[test]
-fn move_fallback_invokes_read_add_update_delete() {
+fn move_not_in_manifest_errors() {
     let env = TestEnv::new();
-    // Manifest WITHOUT move command
-    env.write_manifest(&format!(
-        r#"{{
-  "protocol_version": "1.0.0",
-  "commands": {{
-    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
-    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
-    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
-    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
-    "add":             {{ "argv": ["{bin}", "add"] }},
-    "read":            {{ "argv": ["{bin}", "read"] }},
-    "update":          {{ "argv": ["{bin}", "update"] }},
-    "delete":          {{ "argv": ["{bin}", "delete"] }},
-    "validate":        {{ "argv": ["{bin}", "validate"] }}
-  }}
-}}"#,
-        bin = env.tool_path.display()
-    ));
+    env.write_default_manifest();
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 
-    let out = env.run_json(&["move", "my_node", "--to", "new_parent"]);
-    assert!(
-        out.status.success(),
-        "stdout: {} stderr: {}",
-        stdout(&out),
+    let out = env.run_cmd(&["move", "my_node", "--to", "new_parent"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "move without manifest entry must exit 2; stderr: {}",
         stderr(&out)
     );
+    let err = stderr(&out);
+    assert!(
+        err.contains("does not support"),
+        "expected 'does not support' in error: {err}"
+    );
+}
 
-    let log = env.invocation_log();
-    // Should see read, then add, then update, then delete --force
-    let read_pos = log.find(" read").expect("should call read");
-    let add_pos = log.find(" add").expect("should call add");
-    let update_pos = log.find(" update").expect("should call update");
-    let delete_pos = log.find(" delete").expect("should call delete");
-    assert!(read_pos < add_pos, "read should come before add");
-    assert!(add_pos < update_pos, "add should come before update");
-    assert!(update_pos < delete_pos, "update should come before delete");
-    assert!(log.contains("--force"), "delete should use --force");
+#[test]
+fn rename_not_in_manifest_errors() {
+    let env = TestEnv::new();
+    env.write_default_manifest();
+    env.write_default_tool();
+    env.write_config_pointing_to_tool();
+
+    let out = env.run_cmd(&["rename", "my_node", "--to", "new_name"]);
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "rename without manifest entry must exit 2; stderr: {}",
+        stderr(&out)
+    );
+    let err = stderr(&out);
+    assert!(
+        err.contains("does not support"),
+        "expected 'does not support' in error: {err}"
+    );
 }
 
 // ─── Array flag forwarding ───
@@ -1199,48 +1197,6 @@ fn move_native_to_array_flag_forwarded_flag_once() {
     assert!(
         !move_line.contains("--to soc --to"),
         "must not repeat --to flag, got: {move_line}"
-    );
-}
-
-#[test]
-fn move_fallback_to_array_flag_forwarded_flag_once() {
-    let env = TestEnv::new();
-    // Manifest WITHOUT move — triggers fallback that uses push_array_flag in recreate_subtree
-    env.write_manifest(&format!(
-        r#"{{
-  "protocol_version": "1.0.0",
-  "commands": {{
-    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
-    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
-    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
-    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
-    "add":             {{ "argv": ["{bin}", "add"] }},
-    "read":            {{ "argv": ["{bin}", "read"] }},
-    "update":          {{ "argv": ["{bin}", "update"] }},
-    "delete":          {{ "argv": ["{bin}", "delete"] }},
-    "validate":        {{ "argv": ["{bin}", "validate"] }}
-  }}
-}}"#,
-        bin = env.tool_path.display()
-    ));
-    env.write_default_tool();
-    env.write_config_pointing_to_tool();
-
-    let out = env.run_json(&["move", "my_node", "--to", "soc", "i2c"]);
-    assert!(out.status.success(), "stderr: {}", stderr(&out));
-
-    let log = env.invocation_log();
-    let add_line = log
-        .lines()
-        .find(|l| l.contains(" add ") && l.contains("--to"))
-        .unwrap_or("");
-    assert!(
-        add_line.contains("--to soc i2c"),
-        "fallback add: expected '--to soc i2c' (flag once), got: {add_line}"
-    );
-    assert!(
-        !add_line.contains("--to soc --to"),
-        "fallback add must not repeat --to flag, got: {add_line}"
     );
 }
 
@@ -1673,68 +1629,6 @@ fn rename_native_invokes_subtool() {
     );
 }
 
-#[test]
-fn rename_fallback_node_read_add_update_delete() {
-    let env = TestEnv::new();
-    // Default manifest has no rename — fallback activates.
-    // read "my_node" returns a Node, triggering node rename fallback.
-    env.write_default_manifest();
-    env.write_default_tool();
-    env.write_config_pointing_to_tool();
-
-    let out = env.run_json(&["rename", "my_node", "--to", "new_name"]);
-    assert!(
-        out.status.success(),
-        "stdout: {} stderr: {}",
-        stdout(&out),
-        stderr(&out)
-    );
-
-    let log = env.invocation_log();
-    let read_pos = log.find(" read").expect("fallback should call read");
-    let add_pos = log.find(" add").expect("fallback should call add");
-    let update_pos = log.find(" update").expect("fallback should call update");
-    let delete_pos = log.find(" delete").expect("fallback should call delete");
-    assert!(read_pos < add_pos, "read before add");
-    assert!(add_pos < update_pos, "add before update");
-    assert!(update_pos < delete_pos, "update before delete");
-    assert!(
-        log.contains("--force"),
-        "node rename delete must use --force"
-    );
-}
-
-#[test]
-fn rename_fallback_property_read_update_delete() {
-    let env = TestEnv::new();
-    // read "my_node temperature" returns a Property, triggering property rename fallback.
-    env.write_default_manifest();
-    env.write_default_tool();
-    env.write_config_pointing_to_tool();
-
-    let out = env.run_json(&["rename", "my_node", "temperature", "--to", "temp_c"]);
-    assert!(
-        out.status.success(),
-        "stdout: {} stderr: {}",
-        stdout(&out),
-        stderr(&out)
-    );
-
-    let log = env.invocation_log();
-    let read_pos = log.find(" read").expect("fallback should call read");
-    let update_pos = log.find(" update").expect("fallback should call update");
-    let delete_pos = log.find(" delete").expect("fallback should call delete");
-    assert!(read_pos < update_pos, "read before update");
-    assert!(update_pos < delete_pos, "update before delete");
-
-    // Property delete must NOT use --force (leaf/property deletes directly)
-    let delete_line = log.lines().rfind(|l| l.contains(" delete")).unwrap_or("");
-    assert!(
-        !delete_line.contains("--force"),
-        "property rename delete must not use --force: {delete_line}"
-    );
-}
-
 // ─── Alias ───
 
 fn write_alias_manifest_and_tool(env: &TestEnv) {
@@ -1988,7 +1882,24 @@ fn suggest_unadvertised_kind_exits_2() {
 #[test]
 fn move_requires_source_path() {
     let env = TestEnv::new();
-    env.write_default_manifest(); // no native move — fallback path
+    env.write_manifest(&format!(
+        r#"{{
+  "protocol_version": "1.0.0",
+  "commands": {{
+    "tool-config-get": {{ "argv": ["{bin}", "config-get"] }},
+    "tool-config-set": {{ "argv": ["{bin}", "config-set"] }},
+    "create-workfile": {{ "argv": ["{bin}", "workfile"] }},
+    "list-devices":    {{ "argv": ["{bin}", "devices"] }},
+    "add":             {{ "argv": ["{bin}", "add"] }},
+    "read":            {{ "argv": ["{bin}", "read"] }},
+    "update":          {{ "argv": ["{bin}", "update"] }},
+    "delete":          {{ "argv": ["{bin}", "delete"] }},
+    "validate":        {{ "argv": ["{bin}", "validate"] }},
+    "move":            {{ "argv": ["{bin}", "move"] }}
+  }}
+}}"#,
+        bin = env.tool_path.display()
+    ));
     env.write_default_tool();
     env.write_config_pointing_to_tool();
 

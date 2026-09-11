@@ -37,7 +37,7 @@ attach-meta completion zsh         # print zsh completion script to stdout
 
 **Protocol commands (kebab-case):**
 - Required: `tool-config-get`, `tool-config-set`, `create-workfile`, `list-devices`, `add`, `read`, `update`, `delete`, `validate`
-- Optional (convenience): `move`, `rename`, `alias` — move/rename have fallback workflows when not natively supported
+- Optional (convenience): `move`, `rename`, `alias` — require native tool support; no built-in fallbacks
 - Optional (pipeline): `generate`, `build`, `deploy`
 - Optional (intelligence): `list-intelligence`, `suggest`
 - Meta: `init`, `completion`, `__complete`
@@ -91,7 +91,7 @@ src/
     config.rs          tool-config-get / tool-config-set
     workspace.rs       create-workfile, list-devices
     crud.rs            add, read, update, delete
-    restructure.rs     move, rename (native + fallback), alias
+    restructure.rs     move, rename, alias (native dispatch only)
     pipeline.rs        generate, build, deploy
     validate.rs        validate + path-prefix filtering
     intelligence.rs    list-intelligence, suggest
@@ -102,7 +102,7 @@ docs/schemas/          manifest.schema.json + responses.schema.json (embedded vi
 ## Tests
 
 - **Unit tests** (31): serde round-trips for protocol types, version parsing, manifest meta-schema validation (valid/invalid/missing commands/forbidden required), input validation, dynargs parsing
-- **Integration tests** (`tests/integration.rs`, 33): spin up a fake shell-script tool that implements `attach-manifest` and returns canned responses per command. Tests cover: init flow, version mismatch, meta-schema rejection, hash caching, input validation, CRUD operations, validate filtering, transport errors (non-zero/empty/malformed/timeout), protocol errors (ok:false), exit codes, move/rename fallback workflows, completions, --json mode
+- **Integration tests** (`tests/integration.rs`, 33): spin up a fake shell-script tool that implements `attach-manifest` and returns canned responses per command. Tests cover: init flow, version mismatch, meta-schema rejection, hash caching, input validation, CRUD operations, validate filtering, transport errors (non-zero/empty/malformed/timeout), protocol errors (ok:false), exit codes, move/rename not-in-manifest errors, completions, --json mode
 
 ## Key dependencies
 

@@ -104,11 +104,8 @@ fn main() {
 
     let manifest = verified.manifest;
 
-    // Check command is in manifest (move/rename have fallback workflows)
-    let has_fallback = matches!(cmd, CommandName::Move | CommandName::Rename);
     let mapping = match manifest.get_command(cmd) {
         Some(m) => m.clone(),
-        None if has_fallback => protocol::manifest::CommandMapping::default(),
         None => {
             exit_error(
                 AttachMetaError::ManifestError(format!(

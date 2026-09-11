@@ -333,7 +333,9 @@ NOTE: no implicit root for positional (can't move root)
 NOTE: --to is the destination parent path (array flag — see flag parsing rules); no implicit root
 NOTE: each TOOL is allowed to have rules when moving so it's more convenient to have a dedicated COMMAND
 
-Move workflow (fallback) when native move is unsupported:
+NOTE: attach-meta does NOT implement a fallback — if the tool's manifest does not
+      declare "move", the command is rejected. A 3rd-party caller that needs move
+      semantics on a tool without native support can emulate it with CRUD primitives:
   1. read node (returns full subtree)
   2. depth-first, add each node in the subtree under its new parent:
      - the root node is added under the target parent by Device.key or name
@@ -341,9 +343,8 @@ Move workflow (fallback) when native move is unsupported:
   3. for each added node, update all its properties with values read in step 1
   4. delete old node with --force
 
-NOTE: the fallback is not atomic — a failure at any step leaves the workfile in its
-      current partial state; attach-meta reports which step failed; callers are
-      responsible for inspecting and recovering the workfile
+NOTE: this emulated workflow is not atomic — a failure at any step leaves the workfile
+      in its current partial state; callers are responsible for inspecting and recovering
 ```
 
 COMMAND:
@@ -353,7 +354,9 @@ attach-meta rename [ValidIdentifier, ...ValidIdentifier] --to <value> => CommonR
 NOTE: shall work for nodes and for properties as there are valid use-cases for renaming a property (e.g. aliases in devicetree)
 NOTE: path identifies the target node or property; --to is the new name
 
-Rename workflow (fallback) when not natively supported by the underlying tool:
+NOTE: attach-meta does NOT implement a fallback — if the tool's manifest does not
+      declare "rename", the command is rejected. A 3rd-party caller that needs rename
+      semantics on a tool without native support can emulate it with CRUD primitives:
 
   For a node:
     1. read node (returns full subtree)
@@ -368,9 +371,8 @@ Rename workflow (fallback) when not natively supported by the underlying tool:
     2. update (upsert) new property key with that value
     3. delete old property key
 
-NOTE: the fallback is not atomic — a failure at any step leaves the workfile in its
-      current partial state; attach-meta reports which step failed; callers are
-      responsible for inspecting and recovering the workfile
+NOTE: this emulated workflow is not atomic — a failure at any step leaves the workfile
+      in its current partial state; callers are responsible for inspecting and recovering
 ```
 
 COMMAND:
