@@ -464,8 +464,8 @@ COMMAND:
 ```
 attach-meta suggest <kind> [...args] => SuggestResponse
 
-NOTE: only valid for kinds advertised by list-intelligence
 NOTE: args are kind-specific, described by Intelligence.args
+NOTE: if the tool does not support the requested kind it must return ok:false with a descriptive message; callers must not pre-validate via list-intelligence before calling suggest
 NOTE: autocompletion for suggest is handled by attach-meta via __complete step 2 (calls list-intelligence,
       then suggest); the subtool only needs to implement list-intelligence and suggest
 

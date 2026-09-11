@@ -81,26 +81,6 @@ fn run_suggest(
         ))
     })?;
 
-    let li_mapping = manifest
-        .get_command(CommandName::ListIntelligence)
-        .ok_or_else(|| {
-            AttachMetaError::ManifestError(
-                "command 'list-intelligence' not in manifest".to_string(),
-            )
-        })?;
-
-    let li_raw = transport::invoke(li_mapping, &[])?;
-    let li_response: ListIntelligenceResponse = serde_json::from_value(li_raw).map_err(|e| {
-        AttachMetaError::InternalError(format!("failed to parse list-intelligence response: {e}"))
-    })?;
-
-    let advertised = li_response.intelligence.iter().any(|i| i.kind == *kind);
-    if !advertised {
-        return Err(AttachMetaError::InputError(format!(
-            "suggest kind '{kind}' is not advertised by list-intelligence"
-        )));
-    }
-
     let suggest_mapping = manifest.get_command(CommandName::Suggest).ok_or_else(|| {
         AttachMetaError::ManifestError("command 'suggest' not in manifest".to_string())
     })?;
