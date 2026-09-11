@@ -33,6 +33,10 @@ fn main() {
             handle_completion(rest);
             return;
         }
+        "schema" => {
+            handle_schema(rest);
+            return;
+        }
         "__complete" => {
             // __complete -- <subcommand> [args...] <partial>
             let after_dash = if let Some(pos) = rest.iter().position(|a| a == "--") {
@@ -211,6 +215,26 @@ fn handle_intelligence(
     )?;
 
     Ok((cmd, response))
+}
+
+fn handle_schema(rest: &[String]) {
+    static RESPONSES_SCHEMA: &str = include_str!("../docs/schemas/responses.schema.json");
+    static MANIFEST_SCHEMA: &str = include_str!("../docs/schemas/manifest.schema.json");
+
+    let name = match rest.first().map(|s| s.as_str()) {
+        Some("responses") => RESPONSES_SCHEMA,
+        Some("manifest") => MANIFEST_SCHEMA,
+        Some(other) => {
+            eprintln!("attach-meta: unknown schema '{other}' — expected 'responses' or 'manifest'");
+            std::process::exit(2);
+        }
+        None => {
+            eprintln!("Usage: attach-meta schema <responses|manifest>");
+            std::process::exit(2);
+        }
+    };
+
+    print!("{name}");
 }
 
 fn handle_completion(rest: &[String]) {

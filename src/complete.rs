@@ -32,6 +32,17 @@ pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path)
         return;
     }
 
+    if subcommand == "schema" {
+        if rest.len() <= 1 {
+            for name in ["responses", "manifest"] {
+                if name.starts_with(partial) {
+                    println!("{name}");
+                }
+            }
+        }
+        return;
+    }
+
     // Step 1: partial subcommand -> complete from manifest's declared command set
     let cmd = match CommandName::from_str(subcommand) {
         Some(c) => c,
@@ -49,6 +60,9 @@ pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path)
             }
             if "completion".starts_with(subcommand.as_str()) {
                 println!("completion");
+            }
+            if "schema".starts_with(subcommand.as_str()) {
+                println!("schema");
             }
             if "list-intelligence".starts_with(subcommand.as_str()) {
                 println!("list-intelligence");
@@ -399,6 +413,7 @@ fn print_command_list(manifest: Option<&Manifest>) {
     }
     println!("init");
     println!("completion");
+    println!("schema");
     println!("list-intelligence");
     println!("suggest");
 }

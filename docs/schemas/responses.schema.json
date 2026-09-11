@@ -7,7 +7,7 @@
   "$defs": {
 
     "CommonResponse": {
-      "description": "Open base type composed into every command response via allOf. ok is the only semantic gate; severity is a display hint for message only. Commands whose response adds no extra fields (update, rename, move, alias, tool-config-set, generate, build, deploy) return this shape directly.",
+      "description": "Open base type composed into every command response via allOf. ok is the only semantic gate — if ok is false, always show the message field to the user. severity is a display hint for message only. Commands whose response adds no extra fields (update, rename, move, alias, tool-config-set, generate, build, deploy) return this shape directly.",
       "type": "object",
       "required": ["ok", "message", "severity"],
       "properties": {
@@ -33,7 +33,7 @@
     },
 
     "Config": {
-      "description": "Describes a single tool configuration field and its current value.",
+      "description": "Describes a single tool configuration field and its current value. value: null means the field is not yet set; default: null means no schema default exists. A required field with value: null needs a value before the tool is ready.",
       "type": "object",
       "required": ["field_name", "description", "type", "required", "default", "value"],
       "additionalProperties": false,
@@ -132,12 +132,13 @@
     },
 
     "ValidIdentifier": {
-      "description": "A non-empty string identifying a node by name or alias within its parent scope. Character grammar is tool-defined. A sequence of ValidIdentifiers forms a path resolved left-to-right from root.",
+      "description": "A non-empty string identifying a node by name or alias within its parent scope. Character grammar is tool-defined. A sequence of ValidIdentifiers forms a path resolved left-to-right from root. On the CLI, path segments are space-separated positional arguments (not slash-separated filesystem paths).",
       "type": "string",
       "minLength": 1
     },
 
     "NumberType": {
+      "description": "Numeric property (kind: 'number'). subtype is 'int' or 'float'. Render the value as-is; for float show the original precision. When prompting for update, hint the subtype so the user knows whether decimals are accepted.",
       "type": "object",
       "required": ["kind", "subtype"],
       "additionalProperties": false,
@@ -147,6 +148,7 @@
       }
     },
     "StringType": {
+      "description": "String property (kind: 'string'). Render the value quoted if it contains spaces or special characters, bare otherwise.",
       "type": "object",
       "required": ["kind"],
       "additionalProperties": false,
@@ -155,6 +157,7 @@
       }
     },
     "BoolType": {
+      "description": "Boolean property (kind: 'bool'). Render as 'true' or 'false'.",
       "type": "object",
       "required": ["kind"],
       "additionalProperties": false,
@@ -163,6 +166,7 @@
       }
     },
     "EnumType": {
+      "description": "Enum property (kind: 'enum'). Render the current value; when prompting for update, list all options from the options array. If an option has a display_string, show it alongside the value.",
       "type": "object",
       "required": ["kind", "options"],
       "additionalProperties": false,
@@ -184,7 +188,7 @@
       }
     },
     "ArrayType": {
-      "description": "Variable-length, all items the same type.",
+      "description": "Variable-length array, all items the same type (kind: 'array'). Render as a comma-separated list in brackets, e.g. [1, 2, 3]. The items field describes the element type — use it to guide input prompts.",
       "type": "object",
       "required": ["kind", "items"],
       "additionalProperties": false,
@@ -194,7 +198,7 @@
       }
     },
     "TupleType": {
-      "description": "Fixed-length, each position independently typed.",
+      "description": "Fixed-length tuple, each position independently typed (kind: 'tuple'). Render as a comma-separated list in parentheses, e.g. (3.3, 100).",
       "type": "object",
       "required": ["kind", "items"],
       "additionalProperties": false,
@@ -208,7 +212,7 @@
     },
 
     "TYPES": {
-      "description": "Discriminated union of node property type descriptors. Exclusively used by the read command (Node properties).",
+      "description": "Discriminated union of node property type descriptors, keyed by the 'kind' field. Exclusively used by the read command (Node properties).",
       "oneOf": [
         { "$ref": "#/$defs/NumberType" },
         { "$ref": "#/$defs/StringType" },
@@ -234,6 +238,7 @@
     },
 
     "Property": {
+      "description": "A leaf property (kind: 'property'). Render as 'key = value'.",
       "type": "object",
       "required": ["kind", "key", "type", "value"],
       "additionalProperties": false,
@@ -246,7 +251,7 @@
     },
 
     "Node": {
-      "description": "A tree node. Reading a node always returns its full subtree. alias is absent when the active tool does not declare alias support in its manifest.",
+      "description": "A tree node (kind: 'node'). Reading a node always returns its full subtree. Alias is absent when the active tool does not declare alias support in its manifest.",
       "type": "object",
       "required": ["kind", "key", "properties", "children"],
       "additionalProperties": false,
@@ -283,7 +288,7 @@
     },
 
     "ReadResponse": {
-      "description": "Returned by read. Returns a full Node subtree or a single Property depending on whether the path terminates at a node or a property.",
+      "description": "Returned by read. Discriminate via the 'kind' field: 'node' is a Node subtree, 'property' is a single Property.",
       "oneOf": [
         { "$ref": "#/$defs/Node" },
         { "$ref": "#/$defs/Property" }
@@ -310,7 +315,7 @@
     },
 
     "DeleteResponse": {
-      "description": "Returned by delete. anyOf: a DeletePreview satisfies both branches (it is a superset of CommonResponse); a plain CommonResponse satisfies only the first. Discriminate by presence of node_count.",
+      "description": "Returned by delete. Discriminate by presence of 'node_count': present means DeletePreview (dry-run, no changes made — show affected count and paths, confirm with --force); absent means CommonResponse (final result after --force).",
       "anyOf": [
         { "$ref": "#/$defs/CommonResponse" },
         { "$ref": "#/$defs/DeletePreview" }
@@ -334,7 +339,7 @@
     },
 
     "ValidationResponse": {
-      "description": "Returned by validate. Does not extend CommonResponse — errors[] is self-describing (empty = valid). The subtool always validates the full workfile; attach-meta filters by path when a path argument is given. File-level errors (path: []) always pass through regardless of path filtering.",
+      "description": "Returned by validate. NOTE: does not have an 'ok' field — validity is determined by whether errors is empty. The subtool always validates the full workfile; attach-meta filters by path when a path argument is given. File-level errors (path: []) always pass through regardless of path filtering.",
       "type": "object",
       "required": ["errors", "warnings"],
       "additionalProperties": false,

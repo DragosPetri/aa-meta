@@ -2289,3 +2289,53 @@ fn complete_no_tool_partial_excludes_tool_commands() {
         "expected 'completion' for partial 'co': {lines}"
     );
 }
+
+#[test]
+fn schema_responses_prints_valid_json() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["schema", "responses"]);
+    assert!(out.status.success(), "schema responses should exit 0");
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .expect("schema responses output must be valid JSON");
+    assert_eq!(
+        parsed.get("$id").and_then(|v| v.as_str()),
+        Some("attach-meta/responses")
+    );
+}
+
+#[test]
+fn schema_manifest_prints_valid_json() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["schema", "manifest"]);
+    assert!(out.status.success(), "schema manifest should exit 0");
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .expect("schema manifest output must be valid JSON");
+    assert_eq!(
+        parsed.get("$id").and_then(|v| v.as_str()),
+        Some("attach-meta/manifest")
+    );
+}
+
+#[test]
+fn schema_no_arg_exits_2() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["schema"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+#[test]
+fn schema_unknown_name_exits_2() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["schema", "bogus"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+#[test]
+fn complete_schema_subcommand_names() {
+    let env = NoToolEnv::new();
+    let out = env.run_cmd(&["__complete", "--", "schema", ""]);
+    assert!(out.status.success());
+    let lines = stdout(&out);
+    assert!(lines.contains("responses"), "expected 'responses': {lines}");
+    assert!(lines.contains("manifest"), "expected 'manifest': {lines}");
+}

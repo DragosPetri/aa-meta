@@ -107,6 +107,28 @@ pub struct AddResponse {
     pub path: Vec<String>,
 }
 
+// ── Const-kind tags ──
+// Single-variant enums that serde enforces: serialize to a fixed string,
+// reject any other value on deserialization.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum NodeKind {
+    #[serde(rename = "node")]
+    Node,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum PropertyKind {
+    #[serde(rename = "property")]
+    Property,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum GenericKind {
+    #[serde(rename = "generic")]
+    Generic,
+}
+
 // TYPES — discriminated union on "kind"
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "kind")]
@@ -141,7 +163,7 @@ pub struct EnumOption {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Property {
-    pub kind: String, // always "property"
+    pub kind: PropertyKind,
     pub key: String,
     #[serde(rename = "type")]
     pub prop_type: Types,
@@ -150,7 +172,7 @@ pub struct Property {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Node {
-    pub kind: String, // always "node"
+    pub kind: NodeKind,
     pub key: String,
     pub properties: Vec<Property>,
     pub children: Vec<Node>,
@@ -185,7 +207,7 @@ pub enum DeleteResponse {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ValidationError {
-    pub kind: String, // "generic"
+    pub kind: GenericKind,
     pub path: Vec<String>,
     pub message: String,
 }
@@ -523,7 +545,7 @@ mod tests {
         assert_schema_valid!(
             "Property",
             Property {
-                kind: "property".into(),
+                kind: PropertyKind::Property,
                 key: "k".into(),
                 prop_type: Types::String,
                 value: serde_json::json!("v"),
@@ -536,7 +558,7 @@ mod tests {
         assert_schema_valid!(
             "Node",
             Node {
-                kind: "node".into(),
+                kind: NodeKind::Node,
                 key: "k".into(),
                 properties: vec![],
                 children: vec![],
@@ -550,14 +572,14 @@ mod tests {
         assert_union_schema_valid!(
             "ReadResponse",
             ReadResponse::Node(Node {
-                kind: "node".into(),
+                kind: NodeKind::Node,
                 key: "k".into(),
                 properties: vec![],
                 children: vec![],
                 alias: Some(vec!["a".into()]),
             }),
             ReadResponse::Property(Property {
-                kind: "property".into(),
+                kind: PropertyKind::Property,
                 key: "k".into(),
                 prop_type: Types::String,
                 value: serde_json::json!("v"),
@@ -605,7 +627,7 @@ mod tests {
         assert_schema_valid!(
             "Error",
             ValidationError {
-                kind: "generic".into(),
+                kind: GenericKind::Generic,
                 path: vec![],
                 message: "m".into(),
             }
