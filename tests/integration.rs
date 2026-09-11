@@ -1867,14 +1867,31 @@ fn suggest_direct_invocation() {
 }
 
 #[test]
-fn suggest_unadvertised_kind_exits_2() {
+fn suggest_unadvertised_kind_tool_rejects() {
     let env = TestEnv::new();
     env.write_default_manifest();
-    env.write_default_tool();
+    env.write_tool(
+        r#"
+    suggest)
+        shift
+        case "$1" in
+            device-key|node-key)
+                echo '{"ok":true,"message":"suggestions","severity":"info","suggestions":[{"value":"ad7124"},{"value":"ad5940"}]}'
+                ;;
+            *)
+                echo '{"ok":false,"message":"unsupported kind","severity":"error"}'
+                ;;
+        esac
+        exit 0
+        ;;
+"#,
+    );
     env.write_config_pointing_to_tool();
 
-    let out = env.run_cmd(&["suggest", "totally-unknown-kind"]);
-    assert_eq!(out.status.code(), Some(2));
+    let out = env.run_json(&["suggest", "totally-unknown-kind"]);
+    assert_eq!(out.status.code(), Some(1), "tool ok:false should exit 1");
+    let response: serde_json::Value = serde_json::from_str(stdout(&out).trim()).unwrap();
+    assert_eq!(response["ok"], false);
 }
 
 // ─── move source path guard ───
