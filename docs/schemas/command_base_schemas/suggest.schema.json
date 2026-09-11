@@ -4,7 +4,15 @@
   "description": "Base schema for the suggest command. Kind is the first positional (required); remaining positionals are kind-specific args.",
   "type": "object",
   "properties": {
-    "kind": { "type": "string", "x-positional": true }
+    "kind": {
+      "type": "string",
+      "x-positional": true
+    },
+    "help": {
+      "type": "boolean"
+    }
   },
-  "required": ["kind"]
+  "required": [
+    "kind"
+  ]
 }

@@ -4,12 +4,33 @@
   "description": "Base schema for the add command. At least one of key (positional) or --name must be present.",
   "type": "object",
   "properties": {
-    "key":  { "type": "string", "x-positional": true },
-    "name": { "type": "string" },
-    "to":   { "type": "array", "items": { "type": "string" } }
+    "key": {
+      "type": "string",
+      "x-positional": true
+    },
+    "name": {
+      "type": "string"
+    },
+    "to": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "help": {
+      "type": "boolean"
+    }
   },
   "anyOf": [
-    { "required": ["key"] },
-    { "required": ["name"] }
+    {
+      "required": [
+        "key"
+      ]
+    },
+    {
+      "required": [
+        "name"
+      ]
+    }
   ]
 }

@@ -125,14 +125,17 @@ fn main() {
         }
     };
 
-    // Validate input against effective schema.
+    // Validate input against effective schema (skip when --help is forwarded to subprocess).
     // x-positional properties (positional args) are injected into a temporary flags copy
     // so the schema's anyOf / required constraints can reference them normally.
-    let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
-    let mut validation_flags = parsed.flags_json.clone();
-    inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
-    if let Err(e) = schema::validate_input(&eff_schema, &validation_flags) {
-        exit_error(e, cli.json);
+    let help_requested = parsed.flags_json.get("help").and_then(|v| v.as_bool()) == Some(true);
+    if !help_requested {
+        let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
+        let mut validation_flags = parsed.flags_json.clone();
+        inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
+        if let Err(e) = schema::validate_input(&eff_schema, &validation_flags) {
+            exit_error(e, cli.json);
+        }
     }
 
     // Dispatch
@@ -198,10 +201,13 @@ fn handle_intelligence(
 
     let parsed = dynargs::parse_command_args(cmd, &mapping, rest)?;
 
-    let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
-    let mut validation_flags = parsed.flags_json.clone();
-    inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
-    schema::validate_input(&eff_schema, &validation_flags)?;
+    let help_requested = parsed.flags_json.get("help").and_then(|v| v.as_bool()) == Some(true);
+    if !help_requested {
+        let eff_schema = protocol::base_schema::effective_schema(cmd, mapping.args.as_ref());
+        let mut validation_flags = parsed.flags_json.clone();
+        inject_x_positionals(cmd, &parsed.positionals, &mut validation_flags);
+        schema::validate_input(&eff_schema, &validation_flags)?;
+    }
 
     let response = commands::intelligence::run(
         cmd,

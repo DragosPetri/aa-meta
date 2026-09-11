@@ -4,6 +4,15 @@
   "description": "Base schema for the validate command. Path is a variadic positional (zero or more identifiers).",
   "type": "object",
   "properties": {
-    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true }
+    "path": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-positional": true
+    },
+    "help": {
+      "type": "boolean"
+    }
   }
 }

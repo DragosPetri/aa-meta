@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/list-devices",
   "description": "Base schema for list-devices. No named flags.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/generate",
   "description": "Base schema for generate. No named flags.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

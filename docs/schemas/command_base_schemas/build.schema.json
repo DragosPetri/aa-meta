@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/build",
   "description": "Base schema for build. No named flags.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

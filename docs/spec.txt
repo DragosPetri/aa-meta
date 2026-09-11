@@ -100,6 +100,13 @@ Versioning:
 //                                         values as separate positional tokens after it)
 //   - unknown flag  — treated as a string flag (forward as-is)
 //
+// Protocol-level flags (reserved; tool args may not redeclare them):
+//   --help  — boolean; always forwarded to the subtool; required-field schema validation
+//             is skipped when --help is present (so the subtool receives --help without
+//             attach-meta rejecting absent required args first); the subtool must respond
+//             with CommonResponse { ok: true, message: "<help text>", severity: "info" };
+//             --json is still in effect — the response is the standard JSON envelope
+//
 // In completions entries, arg has two roles:
 //   - a flag name (without "--") => completes the value of that flag
 //   - the subcommand name        => completes positional args for the command
@@ -160,6 +167,9 @@ NOTE: timeout_ms in CommandMapping is the subtool's declared ceiling for that co
 NOTE: ok: false in a CommonResponse always corresponds to exit 0 — the
       tool ran and produced a valid response, but the operation failed;
       transport failures and protocol failures are distinct
+NOTE: when --help is received the subtool must exit 0 and respond with
+      CommonResponse { ok: true, message: "<help text>", severity: "info" };
+      the response is parsed and rendered normally by attach-meta
 
 ───────────────────────────────────────────────────────────────────
 Shared Types

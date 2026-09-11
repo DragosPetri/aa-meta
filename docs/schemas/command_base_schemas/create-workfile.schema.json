@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/create-workfile",
   "description": "Base schema for create-workfile. No named flags.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

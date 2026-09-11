@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/deploy",
   "description": "Base schema for deploy. No named flags.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

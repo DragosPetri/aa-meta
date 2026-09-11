@@ -4,12 +4,33 @@
   "description": "Base schema for the alias command. Path is a variadic positional; exactly one of --with or --remove must be present.",
   "type": "object",
   "properties": {
-    "path":   { "type": "array", "items": { "type": "string" }, "x-positional": true },
-    "with":   { "type": "string" },
-    "remove": { "type": "string" }
+    "path": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-positional": true
+    },
+    "with": {
+      "type": "string"
+    },
+    "remove": {
+      "type": "string"
+    },
+    "help": {
+      "type": "boolean"
+    }
   },
   "oneOf": [
-    { "required": ["with"] },
-    { "required": ["remove"] }
+    {
+      "required": [
+        "with"
+      ]
+    },
+    {
+      "required": [
+        "remove"
+      ]
+    }
   ]
 }

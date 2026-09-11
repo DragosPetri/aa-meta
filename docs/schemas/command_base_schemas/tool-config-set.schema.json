@@ -3,5 +3,9 @@
   "$id": "attach-meta/base/tool-config-set",
   "description": "Base schema for tool-config-set. No named flags; field and value are positional.",
   "type": "object",
-  "properties": {}
+  "properties": {
+    "help": {
+      "type": "boolean"
+    }
+  }
 }

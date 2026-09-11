@@ -4,7 +4,18 @@
   "description": "Base schema for the delete command. Path is a variadic positional; --force is optional.",
   "type": "object",
   "properties": {
-    "path":  { "type": "array", "items": { "type": "string" }, "x-positional": true },
-    "force": { "type": "boolean" }
+    "path": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-positional": true
+    },
+    "force": {
+      "type": "boolean"
+    },
+    "help": {
+      "type": "boolean"
+    }
   }
 }
