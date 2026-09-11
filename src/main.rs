@@ -187,7 +187,7 @@ fn handle_intelligence(
     _json_mode: bool,
 ) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
     let (mut app_config, config_path) = config::load_config()
-        .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
+        .unwrap_or_default();
 
     let manifest = config::try_load_manifest(&mut app_config, &config_path)?;
 
