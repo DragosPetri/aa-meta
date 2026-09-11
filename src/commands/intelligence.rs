@@ -7,12 +7,12 @@ use crate::transport;
 pub fn run(
     cmd: CommandName,
     positionals: &[String],
-    _flags: &serde_json::Value,
+    flags: &serde_json::Value,
     tool_ctx: Option<&Manifest>,
 ) -> std::result::Result<serde_json::Value, AttachMetaError> {
     match cmd {
         CommandName::ListIntelligence => run_list_intelligence(tool_ctx),
-        CommandName::Suggest => run_suggest(positionals, tool_ctx),
+        CommandName::Suggest => run_suggest(positionals, flags, tool_ctx),
         _ => unreachable!(),
     }
 }
@@ -52,6 +52,7 @@ fn run_list_intelligence(
 
 fn run_suggest(
     positionals: &[String],
+    flags: &serde_json::Value,
     tool_ctx: Option<&Manifest>,
 ) -> std::result::Result<serde_json::Value, AttachMetaError> {
     let kind = positionals.first().ok_or_else(|| {
@@ -101,5 +102,22 @@ fn run_suggest(
         AttachMetaError::ManifestError("command 'suggest' not in manifest".to_string())
     })?;
 
-    transport::invoke(suggest_mapping, positionals)
+    let mut extra_args: Vec<String> = positionals.to_vec();
+    if let Some(obj) = flags.as_object() {
+        for (key, val) in obj {
+            if val.is_boolean() {
+                if val.as_bool() == Some(true) {
+                    extra_args.push(format!("--{key}"));
+                }
+            } else if let Some(s) = val.as_str() {
+                extra_args.push(format!("--{key}"));
+                extra_args.push(s.to_string());
+            } else if let Some(arr) = val.as_array() {
+                extra_args.push(format!("--{key}"));
+                extra_args.extend(arr.iter().filter_map(|v| v.as_str()).map(String::from));
+            }
+        }
+    }
+
+    transport::invoke(suggest_mapping, &extra_args)
 }
