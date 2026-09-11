@@ -188,9 +188,8 @@ manifest_sha256 = "{hash}"
 
     fn run_init(&self) -> std::process::Output {
         Command::new(attach_meta())
+            .current_dir(self.dir.path())
             .args([
-                "--config",
-                self.config_path.to_str().unwrap(),
                 "init",
                 self.tool_path.to_str().unwrap(),
                 "--no-interactive",
@@ -201,14 +200,15 @@ manifest_sha256 = "{hash}"
 
     fn run_cmd(&self, args: &[&str]) -> std::process::Output {
         let mut cmd = Command::new(attach_meta());
-        cmd.args(["--config", self.config_path.to_str().unwrap()]);
+        cmd.current_dir(self.dir.path());
         cmd.args(args);
         cmd.output().unwrap()
     }
 
     fn run_json(&self, args: &[&str]) -> std::process::Output {
         let mut cmd = Command::new(attach_meta());
-        cmd.args(["--config", self.config_path.to_str().unwrap(), "--json"]);
+        cmd.current_dir(self.dir.path());
+        cmd.args(["--json"]);
         cmd.args(args);
         cmd.output().unwrap()
     }
@@ -271,9 +271,8 @@ fn init_returns_init_response_json() {
     env.write_default_tool();
 
     let out = Command::new(attach_meta())
+        .current_dir(env.dir.path())
         .args([
-            "--config",
-            env.config_path.to_str().unwrap(),
             "--json",
             "init",
             env.tool_path.to_str().unwrap(),
@@ -1388,9 +1387,8 @@ fn init_missing_fields_and_config_complete() {
     env.write_default_tool();
 
     let out = Command::new(attach_meta())
+        .current_dir(env.dir.path())
         .args([
-            "--config",
-            env.config_path.to_str().unwrap(),
             "--json",
             "init",
             env.tool_path.to_str().unwrap(),

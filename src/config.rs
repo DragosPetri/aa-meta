@@ -45,10 +45,8 @@ impl AppConfig {
     }
 }
 
-pub fn load_config(override_path: Option<PathBuf>) -> Result<(AppConfig, PathBuf)> {
-    let path = override_path
-        .or_else(find_project_config)
-        .unwrap_or_else(default_project_config_path);
+pub fn load_config() -> Result<(AppConfig, PathBuf)> {
+    let path = find_project_config().unwrap_or_else(default_project_config_path);
 
     if !path.exists() {
         return Ok((AppConfig::default(), path));

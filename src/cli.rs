@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 
 #[derive(Debug, Parser)]
@@ -14,22 +12,12 @@ use clap::Parser;
     allow_hyphen_values = true,
 )]
 pub struct Cli {
-    #[arg(long, global = true, help = "Tool to use (overrides config default)")]
-    pub tool: Option<String>,
-
     #[arg(
         long,
         global = true,
         help = "Output raw/normalized JSON instead of human rendering"
     )]
     pub json: bool,
-
-    #[arg(
-        long,
-        global = true,
-        help = "Config file path (default: .attach-meta.toml walked up from cwd)"
-    )]
-    pub config: Option<PathBuf>,
 
     #[arg(long, global = true, help = "Print verbose trace to stderr")]
     pub verbose: bool,

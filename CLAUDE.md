@@ -25,8 +25,8 @@ attach-meta completion zsh         # print zsh completion script to stdout
 5. Writes binary path, manifest path, and SHA-256 hash to `.attach-meta.toml`
 
 **Dispatch flow (two-phase arg parsing):**
-1. `cli.rs` — Phase 1: parses global flags (`--tool`, `--json`, `--config`, `--verbose`) and captures the command name + remaining args as raw `Vec<String>`
-2. `config.rs` — loads config from: `--config` flag → `.attach-meta.toml` walked up from cwd → default cwd
+1. `cli.rs` — Phase 1: parses global flags (`--json`, `--verbose`) and captures the command name + remaining args as raw `Vec<String>`
+2. `config.rs` — loads config from `.attach-meta.toml` walked up from cwd → default cwd
 3. `manifest_store.rs` — reads manifest from stored path, compares SHA-256 hash:
    - unchanged → parse only, skip validation
    - changed → full meta-schema + version validation; persist new hash on success

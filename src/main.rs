@@ -29,7 +29,7 @@ fn main() {
 
     match command_str.as_str() {
         "completion" => {
-            handle_completion(rest, cli.config.as_deref());
+            handle_completion(rest);
             return;
         }
         "__complete" => {
@@ -39,13 +39,12 @@ fn main() {
             } else {
                 rest
             };
-            let (mut config, config_path) =
-                config::load_config(cli.config.clone()).unwrap_or_default();
-            complete::run_complete(after_dash, &mut config, &config_path, cli.tool.as_deref());
+            let (mut config, config_path) = config::load_config().unwrap_or_default();
+            complete::run_complete(after_dash, &mut config, &config_path);
             return;
         }
         "init" => {
-            let result = handle_init(rest, &cli);
+            let result = handle_init(rest);
             exit_with_result(result, cli.json);
             return;
         }
@@ -61,7 +60,7 @@ fn main() {
         }
     };
 
-    let (mut config, config_path) = match config::load_config(cli.config.clone()) {
+    let (mut config, config_path) = match config::load_config() {
         Ok(c) => c,
         Err(e) => exit_error(
             AttachMetaError::InternalError(format!("config error: {e}")),
@@ -69,13 +68,13 @@ fn main() {
         ),
     };
 
-    let tool_name = cli
-        .tool
+    let tool_name = config
+        .meta
+        .default_tool
         .as_deref()
-        .or(config.meta.default_tool.as_deref())
         .unwrap_or_else(|| {
             eprintln!(
-                "attach-meta: no tool specified — use --tool <name> or set default_tool in config"
+                "attach-meta: no tool specified — set default_tool in .attach-meta.toml"
             );
             std::process::exit(2);
         })
@@ -158,7 +157,6 @@ fn main() {
 
 fn handle_init(
     rest: &[String],
-    cli: &cli::Cli,
 ) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
     if rest.is_empty() {
         return Err(AttachMetaError::InputError(
@@ -169,7 +167,7 @@ fn handle_init(
     let binary = &rest[0];
     let no_interactive = rest.iter().any(|a| a == "--no-interactive");
 
-    let (mut config, config_path) = config::load_config(cli.config.clone())
+    let (mut config, config_path) = config::load_config()
         .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
 
     let prompter: Box<dyn prompt::Prompter> = if no_interactive || !prompt::is_interactive() {
@@ -190,31 +188,19 @@ fn handle_init(
     Ok((CommandName::ToolConfigGet, response))
 }
 
-fn handle_completion(rest: &[String], config_path: Option<&std::path::Path>) {
+fn handle_completion(rest: &[String]) {
     if rest.is_empty() {
         eprintln!("Usage: attach-meta completion <bash|zsh|fish>");
         std::process::exit(2);
     }
 
     let shell = &rest[0];
-    match rest.get(1).map(|s| s.as_str()) {
-        Some("--install") | None if rest.len() == 1 => {
-            // Just print the script
-            match complete::generate_completion_script(shell, config_path) {
-                Ok(script) => print!("{script}"),
-                Err(e) => {
-                    eprintln!("attach-meta: {e}");
-                    std::process::exit(2);
-                }
-            }
+    match complete::generate_completion_script(shell) {
+        Ok(script) => print!("{script}"),
+        Err(e) => {
+            eprintln!("attach-meta: {e}");
+            std::process::exit(2);
         }
-        _ => match complete::generate_completion_script(shell, config_path) {
-            Ok(script) => print!("{script}"),
-            Err(e) => {
-                eprintln!("attach-meta: {e}");
-                std::process::exit(2);
-            }
-        },
     }
 }
 
