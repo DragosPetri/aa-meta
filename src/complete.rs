@@ -21,10 +21,12 @@ pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path)
     let rest = &args[1..];
     let partial = rest.last().map(|s| s.as_str()).unwrap_or("");
 
-    // Handle init completions via meta-intelligence
+    // Handle init completions via meta-intelligence — only one positional accepted
     if subcommand == "init" {
-        if let Ok(suggestions) = meta_intelligence::meta_suggest("attachable", &[]) {
-            print_matching_suggestions(&suggestions, partial);
+        if rest.len() <= 1 {
+            if let Ok(suggestions) = meta_intelligence::meta_suggest("attachable", &[]) {
+                print_matching_suggestions(&suggestions, partial);
+            }
         }
         return;
     }
