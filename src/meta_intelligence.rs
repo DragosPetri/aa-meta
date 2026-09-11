@@ -74,10 +74,10 @@ fn scan_path_for_attachables(partial: Option<&str>) -> Vec<Suggestion> {
             if !prefix.is_empty() && !name.starts_with(prefix) {
                 continue;
             }
-            if !seen.insert(name.clone()) {
+            if !is_executable(&entry.path()) {
                 continue;
             }
-            if !is_executable(&entry.path()) {
+            if !seen.insert(name.clone()) {
                 continue;
             }
 
