@@ -8,7 +8,7 @@ use crate::transport;
 
 pub fn run_complete(args: &[String], config: &mut AppConfig, config_path: &Path) {
     // Load manifest upfront — its command set drives which tool commands are available.
-    let manifest: Option<Manifest> = crate::config::try_load_manifest(config, config_path);
+    let manifest: Option<Manifest> = crate::config::try_load_manifest(config, config_path).unwrap_or(None);
 
     // __complete -- <subcommand> [args...] <partial>
     // args is everything after "--"

@@ -84,15 +84,18 @@ fn default_project_config_path() -> PathBuf {
 pub fn try_load_manifest(
     config: &mut AppConfig,
     config_path: &Path,
-) -> Option<crate::protocol::manifest::Manifest> {
-    let tool = config
+) -> Result<Option<crate::protocol::manifest::Manifest>, crate::error::AttachMetaError> {
+    let tool = match config
         .meta
         .default_tool
         .as_deref()
-        .and_then(|name| config.find_tool(name).cloned())?;
+        .and_then(|name| config.find_tool(name).cloned())
+    {
+        Some(t) => t,
+        None => return Ok(None),
+    };
     crate::manifest_store::load_verified(&tool, config, config_path)
-        .ok()
-        .map(|v| v.manifest)
+        .map(|v| Some(v.manifest))
 }
 
 pub fn user_config_path() -> PathBuf {

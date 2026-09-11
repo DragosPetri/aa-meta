@@ -189,7 +189,7 @@ fn handle_intelligence(
     let (mut app_config, config_path) = config::load_config()
         .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
 
-    let manifest = config::try_load_manifest(&mut app_config, &config_path);
+    let manifest = config::try_load_manifest(&mut app_config, &config_path)?;
 
     // Phase 2 parse: use tool mapping if available, synthetic empty mapping otherwise
     let tool_mapping = manifest.as_ref().and_then(|m| m.get_command(cmd)).cloned();
