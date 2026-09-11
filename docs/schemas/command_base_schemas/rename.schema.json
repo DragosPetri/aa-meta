@@ -4,8 +4,8 @@
   "description": "Base schema for the rename command. Path is a variadic positional; --to is required.",
   "type": "object",
   "properties": {
-    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true },
+    "path": { "type": "array", "items": { "type": "string" }, "x-positional": true, "minItems": 1 },
     "to":   { "type": "string" }
   },
-  "required": ["to"]
+  "required": ["to", "path"]
 }

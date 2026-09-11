@@ -4,8 +4,8 @@
   "description": "Base schema for the move command. Src is a variadic positional (source path); --to is required.",
   "type": "object",
   "properties": {
-    "src": { "type": "array", "items": { "type": "string" }, "x-positional": true },
+    "src": { "type": "array", "items": { "type": "string" }, "x-positional": true, "minItems": 1 },
     "to":  { "type": "array", "items": { "type": "string" } }
   },
-  "required": ["to"]
+  "required": ["to", "src"]
 }
