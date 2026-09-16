@@ -167,7 +167,10 @@ fn render_list_intelligence(v: &serde_json::Value) {
         } else {
             for i in &r.intelligence {
                 let arg_names: Vec<&str> = i.args.iter().map(|a| a.name.as_str()).collect();
-                eprintln!("  {} (args: {})", i.kind, arg_names.join(", "));
+                eprintln!("  {} — {}", i.kind, i.description);
+                if !i.args.is_empty() {
+                    eprintln!("    args: {}", arg_names.join(", "));
+                }
             }
         }
     } else {

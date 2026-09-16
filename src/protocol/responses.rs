@@ -230,6 +230,7 @@ pub struct IntelligenceArg {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Intelligence {
     pub kind: String,
+    pub description: String,
     pub args: Vec<IntelligenceArg>,
 }
 
@@ -664,6 +665,7 @@ mod tests {
             "Intelligence",
             Intelligence {
                 kind: "k".into(),
+                description: "d".into(),
                 args: vec![],
             }
         );

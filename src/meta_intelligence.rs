@@ -6,6 +6,7 @@ pub const RESERVED_KINDS: &[&str] = &["attachable"];
 pub fn meta_intelligences() -> Vec<Intelligence> {
     vec![Intelligence {
         kind: "attachable".to_string(),
+        description: "Suggests registered analog-attachable binaries found on $PATH. Use when the user needs to pick a tool to register or interact with.".to_string(),
         args: vec![IntelligenceArg {
             name: "partial".to_string(),
             description: "partial binary name to filter".to_string(),
@@ -123,6 +124,7 @@ mod tests {
         let meta = meta_intelligences();
         let tool = vec![Intelligence {
             kind: "device-key".to_string(),
+            description: "device key".to_string(),
             args: vec![],
         }];
         let merged = merge_intelligence(meta, tool);
@@ -137,6 +139,7 @@ mod tests {
         let tool = vec![
             Intelligence {
                 kind: "attachable".to_string(),
+                description: "tool version".to_string(),
                 args: vec![IntelligenceArg {
                     name: "x".to_string(),
                     description: "tool version".to_string(),
@@ -146,6 +149,7 @@ mod tests {
             },
             Intelligence {
                 kind: "device-key".to_string(),
+                description: "device key".to_string(),
                 args: vec![],
             },
         ];

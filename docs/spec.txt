@@ -42,6 +42,8 @@ NOTE: list-intelligence presence in commands declares intelligence support
 NOTE: absence of a command entry means unsupported
 NOTE: tool extensions are purely additive — tool authors may only declare optional fields;
       required fields are owned by the protocol (enforced by meta-schema, see below)
+NOTE: CommandMapping may include an optional "description" string — a short, human-readable
+      summary of what the tool does for that command; it has no protocol-level effect
 NOTE: every command that routes to a subtool shall re-read the manifest from the path
       stored in .attach-meta.toml; the SHA-256 of the file contents is compared against the
       value stored alongside the path:
@@ -136,7 +138,8 @@ Versioning:
   "properties": {
     "key":  { "type": "string", "x-positional": true },
     "name": { "type": "string" },
-    "to":   { "type": "array", "items": { "type": "string" } }
+    "to":   { "type": "array", "items": { "type": "string" } },
+    "help": { "type": "boolean" }
   },
   "anyOf": [
     { "required": ["key"] },
@@ -460,14 +463,39 @@ TODO: consider if arguments are needed (like input) or it's entirely config base
 Commands — Intelligence
 ───────────────────────────────────────────────────────────────────
 
+Meta-Intelligence:
+
+  attach-meta provides its own intelligence layer alongside tool-provided
+  intelligence. Meta kinds are reserved by attach-meta and handled locally
+  without dispatching to a sub-tool.
+
+  Reserved kinds:
+    - "attachable" — scans $PATH for executables matching "attach-*" (excluding
+      "attach-meta" itself); accepts one optional arg "partial" to filter by
+      prefix; returns Suggestion[] of matching binary names, deduplicated and
+      sorted alphabetically
+
+  Merging:
+    list-intelligence returns the union of meta kinds and tool kinds. If a tool
+    declares a kind that collides with a reserved meta kind, the meta version
+    takes precedence and a warning is emitted to stderr. suggest dispatches
+    reserved kinds locally and all other kinds to the sub-tool.
+
+  Graceful degradation:
+    list-intelligence and suggest do not require a registered tool. When no tool
+    is configured (no .attach-meta.toml or no default_tool), they still return
+    meta-intelligence results. Tool-provided kinds are simply absent in that case.
+    A suggest call for a non-meta kind with no tool configured returns an error.
+
 COMMAND:
 ```
 attach-meta list-intelligence => ListIntelligenceResponse
 
-NOTE: advertises which suggestion kinds the active tool supports
+NOTE: advertises which suggestion kinds are available — both meta (reserved) and tool-provided
 NOTE: kind is a free-form string; tools may define any kinds they support
 NOTE: IntelligenceArg.kind uses the same kind tokens as completions[].kind —
       the same kind that completes a flag value can complete a suggest arg
+NOTE: does not require a registered tool — returns meta kinds even without a tool configured
 ```
 
 COMMAND:
@@ -475,12 +503,31 @@ COMMAND:
 attach-meta suggest <kind> [...args] => SuggestResponse
 
 NOTE: args are kind-specific, described by Intelligence.args
+NOTE: reserved meta kinds (e.g. "attachable") are handled locally by attach-meta without
+      dispatching to a sub-tool
 NOTE: if the tool does not support the requested kind it must return ok:false with a descriptive message; callers must not pre-validate via list-intelligence before calling suggest
 NOTE: autocompletion for suggest is handled by attach-meta via __complete step 2 (calls list-intelligence,
       then suggest); the subtool only needs to implement list-intelligence and suggest
+NOTE: does not require a registered tool for meta kinds; non-meta kinds require a tool
 
 // example:
-attach-meta suggest parent <node_key> => SuggestResponse
+attach-meta suggest attachable attach-p => SuggestResponse (meta kind, local)
+attach-meta suggest parent <node_key>   => SuggestResponse (tool kind, dispatched)
+```
+
+───────────────────────────────────────────────────────────────────
+Commands — Schema Inspection
+───────────────────────────────────────────────────────────────────
+
+COMMAND:
+```
+attach-meta schema <responses|manifest>
+
+NOTE: prints the named JSON Schema to stdout as raw JSON
+NOTE: "responses" prints docs/schemas/responses.schema.json
+NOTE: "manifest"  prints docs/schemas/manifest.schema.json
+NOTE: this is an attach-meta built-in — no registered tool is required
+NOTE: useful for tooling that needs the protocol schemas at runtime (editors, validators, CI)
 ```
 
 ───────────────────────────────────────────────────────────────────
@@ -512,8 +559,16 @@ NOTE: tool authors implement suggest and list-intelligence only; completions
       the tool never receives __complete calls
 
 __complete algorithm (everything after "--" is passed in as args):
+  0. Built-in subcommand completions:
+     a. If <subcommand> is "init": call meta_suggest("attachable") with no filter;
+        output matching binaries filtered by <partial>; done
+        (only completes the first positional — init takes exactly one argument)
+     b. If <subcommand> is "schema": output "responses" and "manifest" filtered
+        by <partial>; done
   1. If <subcommand> is absent or not a recognized command name:
      output each command name that starts with <subcommand> (empty = all); done
+     The candidate set includes: tool-declared commands from the manifest,
+     plus the built-ins: init, completion, schema, list-intelligence, suggest
   2. If <subcommand> is "suggest":
      a. If the kind has not yet been committed (no tokens after "suggest", or
         only a partial word): call list-intelligence; output Intelligence[].kind

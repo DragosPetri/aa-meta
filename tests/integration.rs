@@ -141,7 +141,7 @@ JSON
         exit 0
         ;;
     list-intelligence)
-        echo '{{"ok":true,"message":"intelligence","severity":"info","intelligence":[{{"kind":"device-key","args":[{{"name":"parent","description":"parent node","required":false,"kind":"node-key"}}]}},{{"kind":"node-key","args":[]}}]}}'
+        echo '{{"ok":true,"message":"intelligence","severity":"info","intelligence":[{{"kind":"device-key","description":"Suggests device keys for the connected device.","args":[{{"name":"parent","description":"parent node","required":false,"kind":"node-key"}}]}},{{"kind":"node-key","description":"Suggests node keys under a given parent device.","args":[]}}]}}'
         exit 0
         ;;
     suggest)
@@ -2101,7 +2101,7 @@ fn meta_intelligence_collision_warns() {
     env.write_tool(
         r#"
     list-intelligence)
-        echo '{"ok":true,"message":"intelligence","severity":"info","intelligence":[{"kind":"attachable","args":[]},{"kind":"device-key","args":[]}]}'
+        echo '{"ok":true,"message":"intelligence","severity":"info","intelligence":[{"kind":"attachable","description":"Suggests attach-* binaries on $PATH.","args":[]},{"kind":"device-key","description":"Suggests device keys for the connected device.","args":[]}]}'
         exit 0
         ;;
     suggest)

@@ -371,11 +371,15 @@
     "Intelligence": {
       "description": "Advertises one suggestion kind the active tool supports.",
       "type": "object",
-      "required": ["kind", "args"],
+      "required": ["kind", "description", "args"],
       "additionalProperties": false,
       "properties": {
         "kind": {
           "description": "Free-form kind token. Tools may define any kinds they support.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Agent-friendly description of when this intelligence kind is appropriate to use.",
           "type": "string"
         },
         "args": {
