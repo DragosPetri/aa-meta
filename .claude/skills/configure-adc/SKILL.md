@@ -122,6 +122,8 @@ Use `update` to write. Re-read the manifest's `update` description for path conv
 
 **Bus and chip-select are structural** — they are set when the device node is placed in the workfile and are already fixed if the device exists. Skip asking for them on an existing device; only raise them when adding a brand-new device node.
 
+**`reg` and the node name are coupled**: the unit address in the node name (the part after `@`, e.g. `adc@0`) must equal the `reg` property value. Whenever `reg` is set or changed, the node must be renamed to match, and vice versa — mismatches are a DTS error. Verify the current node name against `reg` when reviewing an existing device, and keep them in sync on any write.
+
 For both fresh and existing devices, the remaining SPI properties (max clock speed and mode) may still need to be set. Check the read output first:
 
 - **Max SPI clock**: most ADI SAR ADCs support 50–80 MHz; sigma-delta parts are often 10–20 MHz — check the datasheet
@@ -169,3 +171,4 @@ Always prefer tool-authored intelligence over the generic guidance here.
 - Show human-readable summaries, never raw JSON
 - If `ok: false`, show the `message` field and re-prompt before continuing
 - Never overwrite an existing value without showing the user what is currently there
+- Keep the node name and `reg` in sync: the unit address after `@` must always equal the `reg` value — update both together whenever either changes
