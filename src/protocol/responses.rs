@@ -165,6 +165,8 @@ pub struct EnumOption {
 pub struct Property {
     pub kind: PropertyKind,
     pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     #[serde(rename = "type")]
     pub prop_type: Types,
     pub value: serde_json::Value,
@@ -548,6 +550,7 @@ mod tests {
             Property {
                 kind: PropertyKind::Property,
                 key: "k".into(),
+                description: None,
                 prop_type: Types::String,
                 value: serde_json::json!("v"),
             }
@@ -582,6 +585,7 @@ mod tests {
             ReadResponse::Property(Property {
                 kind: PropertyKind::Property,
                 key: "k".into(),
+                description: None,
                 prop_type: Types::String,
                 value: serde_json::json!("v"),
             }),
