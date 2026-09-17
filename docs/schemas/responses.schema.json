@@ -243,11 +243,10 @@
       "required": ["kind", "key", "type", "value"],
       "additionalProperties": false,
       "properties": {
-        "kind":        { "const": "property" },
-        "key":         { "type": "string" },
-        "description": { "type": "string", "description": "Human-readable description of what this property represents." },
-        "type":        { "$ref": "#/$defs/TYPES" },
-        "value":       { "$ref": "#/$defs/PropertyValue" }
+        "kind":  { "const": "property" },
+        "key":   { "type": "string" },
+        "type":  { "$ref": "#/$defs/TYPES" },
+        "value": { "$ref": "#/$defs/PropertyValue" }
       }
     },
 

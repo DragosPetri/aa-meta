@@ -52,9 +52,6 @@ fn render_read(v: &serde_json::Value) {
             ReadResponse::Node(node) => render_node(&node, 0),
             ReadResponse::Property(prop) => {
                 eprintln!("  {} = {}", prop.key, prop.value);
-                if let Some(desc) = &prop.description {
-                    eprintln!("    {}", desc);
-                }
             }
         }
     } else {

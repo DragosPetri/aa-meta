@@ -190,7 +190,6 @@ NOTE: ok: true  + severity: "error" => protocol invariant violation; must never 
 
 NOTE: TYPES is exclusively used by the read command (Node properties)
 NOTE: PropertyValue is recursive — nesting depth follows the structure declared by type
-NOTE: Property.description is optional — tools should populate it with a human-readable explanation of what the property represents (units, range, purpose)
 NOTE: alias is absent when the active tool does not declare alias support in its manifest
 
 NOTE: a sequence of ValidIdentifiers forms a path resolved left-to-right from root
