@@ -111,7 +111,28 @@ Show a brief summary: tool name, configured fields and their values.
 
 **Read the manifest for command descriptions**: Locate the registered tool's manifest path in `.attach-meta.toml`, then read it (it is a JSON file). Each `CommandMapping` may carry a `description` string written by the tool author that explains what the command does for *this specific tool*. Use these descriptions throughout Phase 2 when explaining to the user what an action will do — prefer the tool-author's wording over generic protocol descriptions. If no description is present for a command, fall back to the protocol's own definition.
 
-### Step 1: List available devices
+### Step 1: Discover available intelligence
+
+Run:
+```
+attach-meta --json list-intelligence
+```
+
+Parse `ListIntelligenceResponse`. For each item in `intelligence`, read its `kind`, `description`, and `args`. Filter out kinds whose description indicates they are only relevant during tool registration or init — those are Phase 1 concerns.
+
+For the remaining kinds, read each item's `description` (written by the tool author) to understand when that kind is useful. Present them to the user as a brief capability summary — one line per kind phrased as what you can help with, using the tool author's own description as the source of truth.
+
+**Carry the intelligence list forward**: throughout the session, proactively invoke relevant kinds at the right moment based on their descriptions:
+- Before an `add` — if a kind's description says it helps with placement or finding valid parents, offer it.
+- After an `add` — if a kind's description says it lists properties or required fields for a node, run it on the new node and surface the results.
+- Before an `update` — if a kind's description says it reports value format or type for a property, offer it.
+- When the user seems uncertain about a key or identifier — if a kind's description says it discovers or filters device names, offer it.
+
+Run `suggest <kind> [args...]` to invoke any intelligence kind. Args and their shapes are declared in the kind's `args` array.
+
+If `list-intelligence` returns `ok: false` or the tool advertises no kinds, skip this step silently and continue — intelligence is optional.
+
+### Step 2: List available devices
 
 Run:
 ```
@@ -120,7 +141,7 @@ attach-meta --json list-devices
 
 Parse `ListDevicesResponse`. Show devices as: `key (tag)`. If empty, say so — the user will need a workfile first.
 
-### Step 2: Create a workfile (if needed)
+### Step 3: Create a workfile (if needed)
 
 If list-devices returned empty or the user says there is no workfile yet:
 
@@ -133,7 +154,7 @@ Parse `CreateWorkfileResponse`. Show the path of the created workfile. Note: the
 
 Run `attach-meta --json list-devices` again to confirm the initial device list.
 
-### Step 3: Interactive device workflow
+### Step 4: Interactive device workflow
 
 Offer these actions in a loop. Ask the user what they want to do and execute it:
 
@@ -228,7 +249,7 @@ Run the same prompting flow as Phase 1 Step 4 for the chosen field.
 
 ---
 
-### Step 4: Suggest next steps
+### Step 5: Suggest next steps
 
 After each successful action, briefly suggest what makes sense next:
 - After `add` → "Read the tree to confirm, validate the tree to confirm, or add properties with `update`"
