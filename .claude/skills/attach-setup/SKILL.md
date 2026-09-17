@@ -122,6 +122,14 @@ Parse `ListIntelligenceResponse`. For each item in `intelligence`, read its `kin
 
 For the remaining kinds, read each item's `description` (written by the tool author) to understand when that kind is useful. Present them to the user as a brief capability summary — one line per kind phrased as what you can help with, using the tool author's own description as the source of truth.
 
+**ADC detection**: After listing intelligence and devices, check whether the user is configuring an ADC device. Indicators include:
+- The user says they are configuring an ADC, analog-to-digital converter, or a specific ADC part (e.g. AD4130, AD7124, AD7173, AD7768)
+- A device key or name contains "adc"
+- An intelligence kind description mentions channels, gain, reference voltage, ODR, or sampling rate
+- The tool's manifest command descriptions reference analog input, conversion, or signal conditioning
+
+If any of these apply, invoke the `configure-adc` skill to handle the rest of Phase 2 for that device — it provides ADC-domain knowledge for channel setup, reference, gain, ODR, and interface wiring on top of the standard CRUD commands.
+
 **Carry the intelligence list forward**: throughout the session, proactively invoke relevant kinds at the right moment based on their descriptions:
 - Before an `add` — if a kind's description says it helps with placement or finding valid parents, offer it.
 - After an `add` — if a kind's description says it lists properties or required fields for a node, run it on the new node and surface the results.
