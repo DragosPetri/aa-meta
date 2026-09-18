@@ -40,7 +40,7 @@ pub fn check_major_match(tool_version: &str, binary: &str) -> Result<()> {
     if tool.major != ours.major {
         bail!(
             "protocol version mismatch: '{binary}' reports '{tool_version}', \
-             attach-meta is '{}' — major version must match \
+             analog-attach is '{}' — major version must match \
              (got {}, need {})",
             ours,
             tool.major,

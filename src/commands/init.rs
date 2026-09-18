@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::config::{AppConfig, ToolConfig};
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::manifest_store;
 use crate::prompt::{Prompter, format_config_prompt};
 use crate::protocol::manifest::CommandName;
@@ -16,20 +16,20 @@ pub fn run_init(
     prompter: &dyn Prompter,
     config: &mut AppConfig,
     config_path: &Path,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     // Step 1: call <binary> attach-manifest
     let output = std::process::Command::new(binary)
         .arg("attach-manifest")
         .output()
         .map_err(|e| {
-            AttachMetaError::TransportError(format!(
+            AnalogAttachError::TransportError(format!(
                 "failed to run '{binary} attach-manifest': {e}"
             ))
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AttachMetaError::TransportError(format!(
+        return Err(AnalogAttachError::TransportError(format!(
             "'{binary} attach-manifest' exited with {}: {stderr}",
             output.status
         )));
@@ -38,14 +38,14 @@ pub fn run_init(
     // Step 2: read manifest path from stdout
     let manifest_path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if manifest_path_str.is_empty() {
-        return Err(AttachMetaError::TransportError(
+        return Err(AnalogAttachError::TransportError(
             "attach-manifest produced empty stdout — expected a file path".to_string(),
         ));
     }
 
     let manifest_path = std::path::PathBuf::from(&manifest_path_str);
     if !manifest_path.exists() {
-        return Err(AttachMetaError::TransportError(format!(
+        return Err(AnalogAttachError::TransportError(format!(
             "manifest path '{}' does not exist",
             manifest_path.display()
         )));
@@ -53,26 +53,26 @@ pub fn run_init(
 
     // Step 3: read and parse manifest
     let content = std::fs::read_to_string(&manifest_path).map_err(|e| {
-        AttachMetaError::ManifestError(format!(
+        AnalogAttachError::ManifestError(format!(
             "failed to read manifest at '{}': {e}",
             manifest_path.display()
         ))
     })?;
 
     let manifest_json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| AttachMetaError::ManifestError(format!("manifest is not valid JSON: {e}")))?;
+        .map_err(|e| AnalogAttachError::ManifestError(format!("manifest is not valid JSON: {e}")))?;
 
     // Step 4: validate against meta-schema
     schema::validate_manifest(&manifest_json)?;
 
     // Step 5: check protocol_version major match
     let manifest = crate::protocol::manifest::parse_manifest(&content)
-        .map_err(|e| AttachMetaError::ManifestError(e.to_string()))?;
+        .map_err(|e| AnalogAttachError::ManifestError(e.to_string()))?;
 
     version::check_major_match(&manifest.protocol_version, binary)
-        .map_err(|e| AttachMetaError::ManifestError(e.to_string()))?;
+        .map_err(|e| AnalogAttachError::ManifestError(e.to_string()))?;
 
-    // Step 6: write to .attach-meta.toml
+    // Step 6: write to .analog-attach.toml
     let hash = manifest_store::sha256_hex(&content);
 
     // Find or create tool entry
@@ -101,7 +101,7 @@ pub fn run_init(
 
     config
         .save(config_path)
-        .map_err(|e| AttachMetaError::InternalError(format!("failed to save config: {e}")))?;
+        .map_err(|e| AnalogAttachError::InternalError(format!("failed to save config: {e}")))?;
 
     // Step 7: interactive config session
     let mut missing_fields = Vec::new();
@@ -145,7 +145,7 @@ pub fn run_init(
     };
 
     serde_json::to_value(&init_response).map_err(|e| {
-        AttachMetaError::InternalError(format!("failed to serialize init response: {e}"))
+        AnalogAttachError::InternalError(format!("failed to serialize init response: {e}"))
     })
 }
 

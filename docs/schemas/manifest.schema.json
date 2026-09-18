@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/manifest",
+  "$id": "analog-attach/manifest",
   "title": "Analog Attachable Manifest",
-  "description": "Meta-schema that attach-meta validates every tool manifest against at init time and on content-hash change.",
+  "description": "Meta-schema that analog-attach validates every tool manifest against at init time and on content-hash change.",
   "type": "object",
   "required": ["protocol_version", "commands"],
   "additionalProperties": false,
   "properties": {
     "protocol_version": {
-      "description": "Semver string (MAJOR.MINOR.PATCH). Major must match attach-meta's own major; mismatch is a hard error.",
+      "description": "Semver string (MAJOR.MINOR.PATCH). Major must match analog-attach's own major; mismatch is a hard error.",
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$"
     },
@@ -40,11 +40,11 @@
       "additionalProperties": false,
       "properties": {
         "description": {
-          "description": "Human-readable description of what this command does in the context of this specific tool. Used by agents to explain commands to users when driving attach-meta interactions.",
+          "description": "Human-readable description of what this command does in the context of this specific tool. Used by agents to explain commands to users when driving analog-attach interactions.",
           "type": "string"
         },
         "argv": {
-          "description": "The argv prefix prepended by attach-meta when dispatching this command. First element is typically the binary name or path.",
+          "description": "The argv prefix prepended by analog-attach when dispatching this command. First element is typically the binary name or path.",
           "type": "array",
           "items": { "type": "string" },
           "minItems": 1
@@ -54,7 +54,7 @@
           "$ref": "https://json-schema.org/draft/2020-12/schema"
         },
         "timeout_ms": {
-          "description": "Maximum milliseconds attach-meta waits for this command's process. Process is killed and a transport error is raised on expiry. Absent means no timeout.",
+          "description": "Maximum milliseconds analog-attach waits for this command's process. Process is killed and a transport error is raised on expiry. Absent means no timeout.",
           "type": "integer",
           "minimum": 1
         },

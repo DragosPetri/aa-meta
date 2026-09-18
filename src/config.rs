@@ -61,11 +61,11 @@ pub fn load_config() -> Result<(AppConfig, PathBuf)> {
     Ok((config, path))
 }
 
-/// Walk up from cwd looking for `.attach-meta.toml`.
+/// Walk up from cwd looking for `.analog-attach.toml`.
 fn find_project_config() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
     loop {
-        let candidate = dir.join(".attach-meta.toml");
+        let candidate = dir.join(".analog-attach.toml");
         if candidate.exists() {
             return Some(candidate);
         }
@@ -78,13 +78,13 @@ fn find_project_config() -> Option<PathBuf> {
 fn default_project_config_path() -> PathBuf {
     std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join(".attach-meta.toml")
+        .join(".analog-attach.toml")
 }
 
 pub fn try_load_manifest(
     config: &mut AppConfig,
     config_path: &Path,
-) -> Result<Option<crate::protocol::manifest::Manifest>, crate::error::AttachMetaError> {
+) -> Result<Option<crate::protocol::manifest::Manifest>, crate::error::AnalogAttachError> {
     let tool = match config
         .meta
         .default_tool

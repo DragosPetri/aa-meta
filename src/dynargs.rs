@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::base_schema;
 use crate::protocol::manifest::{CommandMapping, CommandName};
 
@@ -36,7 +36,7 @@ pub fn parse_command_args(
     cmd: CommandName,
     mapping: &CommandMapping,
     raw_args: &[String],
-) -> std::result::Result<ParsedInput, AttachMetaError> {
+) -> std::result::Result<ParsedInput, AnalogAttachError> {
     let base = base_schema::base_schema(cmd);
     let tool_args = mapping.args.as_ref();
 
@@ -49,7 +49,7 @@ pub fn parse_command_args(
             if let Some(tool_props) = ta.get("properties").and_then(|p| p.as_object()) {
                 for key in tool_props.keys() {
                     if base_props.contains_key(key) {
-                        return Err(AttachMetaError::ManifestError(format!(
+                        return Err(AnalogAttachError::ManifestError(format!(
                             "tool arg '--{key}' collides with a protocol flag"
                         )));
                     }
@@ -84,7 +84,7 @@ pub fn parse_command_args(
                     i += 1;
                 }
                 if values.is_empty() {
-                    return Err(AttachMetaError::InputError(format!(
+                    return Err(AnalogAttachError::InputError(format!(
                         "flag '--{flag_name}' requires at least one value"
                     )));
                 }
@@ -94,7 +94,7 @@ pub fn parse_command_args(
                 i += 1;
                 flags.insert(flag_name.to_string(), json!(&raw_args[i]));
             } else {
-                return Err(AttachMetaError::InputError(format!(
+                return Err(AnalogAttachError::InputError(format!(
                     "flag '--{flag_name}' requires a value"
                 )));
             }
@@ -209,7 +209,7 @@ mod tests {
         let m = mapping(Some(tool_args));
         let raw = vec![];
         let err = parse_command_args(CommandName::Add, &m, &raw).unwrap_err();
-        assert!(matches!(err, AttachMetaError::ManifestError(_)));
+        assert!(matches!(err, AnalogAttachError::ManifestError(_)));
     }
 
     #[test]

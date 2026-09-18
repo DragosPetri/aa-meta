@@ -1,5 +1,5 @@
 use crate::commands::CommandContext;
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::manifest::CommandName;
 use crate::transport;
 
@@ -8,9 +8,9 @@ pub fn run(
     positionals: &[String],
     _flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let mapping = ctx.manifest.get_command(cmd).ok_or_else(|| {
-        AttachMetaError::ManifestError(format!("command '{}' not in manifest", cmd))
+        AnalogAttachError::ManifestError(format!("command '{}' not in manifest", cmd))
     })?;
 
     let mut extra_args = Vec::new();
@@ -21,7 +21,7 @@ pub fn run(
         }
         CommandName::ToolConfigSet => {
             if positionals.len() < 2 {
-                return Err(AttachMetaError::InputError(
+                return Err(AnalogAttachError::InputError(
                     "tool-config-set requires <field> <value>".to_string(),
                 ));
             }

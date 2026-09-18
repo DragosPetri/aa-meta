@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/move",
+  "$id": "analog-attach/base/move",
   "description": "Base schema for the move command. Src is a variadic positional (source path); --to is required.",
   "type": "object",
   "properties": {

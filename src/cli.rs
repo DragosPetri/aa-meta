@@ -2,10 +2,10 @@ use clap::Parser;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "attach-meta",
+    name = "analog-attach",
     version,
     about = "Meta-tool for analog attachable tools",
-    override_usage = "attach-meta [OPTIONS] [COMMAND] [ARGS]...",
+    override_usage = "analog-attach [OPTIONS] [COMMAND] [ARGS]...",
     // Phase 1 only: we capture global flags + the subcommand name.
     // Everything after the subcommand is captured as raw trailing args
     // for phase-2 parsing (dynargs) once the manifest is loaded.
@@ -20,7 +20,7 @@ Commands:
 
 list-intelligence and suggest work without a registered tool (meta-intelligence only).
 Once a tool is registered, protocol commands (add, read, update, …) become available.
-Run 'attach-meta init --help' for registration details.",
+Run 'analog-attach init --help' for registration details.",
 )]
 pub struct Cli {
     #[arg(

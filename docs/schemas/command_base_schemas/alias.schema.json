@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/alias",
+  "$id": "analog-attach/base/alias",
   "description": "Base schema for the alias command. Path is a variadic positional; exactly one of --with or --remove must be present.",
   "type": "object",
   "properties": {

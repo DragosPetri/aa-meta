@@ -7,7 +7,7 @@ pub mod restructure;
 pub mod validate;
 pub mod workspace;
 
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::manifest::{CommandName, Manifest};
 
 pub struct CommandContext {
@@ -19,7 +19,7 @@ pub fn dispatch(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     match cmd {
         CommandName::ToolConfigGet | CommandName::ToolConfigSet => {
             config::run(cmd, positionals, flags, ctx)

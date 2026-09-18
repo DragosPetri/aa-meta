@@ -1,4 +1,4 @@
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::meta_intelligence;
 use crate::protocol::manifest::{CommandName, Manifest};
 use crate::protocol::responses::{ListIntelligenceResponse, Severity, SuggestResponse};
@@ -9,7 +9,7 @@ pub fn run(
     positionals: &[String],
     flags: &serde_json::Value,
     tool_ctx: Option<&Manifest>,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     match cmd {
         CommandName::ListIntelligence => run_list_intelligence(tool_ctx),
         CommandName::Suggest => run_suggest(positionals, flags, tool_ctx),
@@ -19,7 +19,7 @@ pub fn run(
 
 fn run_list_intelligence(
     tool_ctx: Option<&Manifest>,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let meta = meta_intelligence::meta_intelligences();
 
     let tool_intelligence = if let Some(li_mapping) =
@@ -28,12 +28,12 @@ fn run_list_intelligence(
         let li_raw = transport::invoke(li_mapping, &[])?;
         let li_response: ListIntelligenceResponse =
             serde_json::from_value(li_raw.clone()).map_err(|e| {
-                AttachMetaError::InternalError(format!(
+                AnalogAttachError::InternalError(format!(
                     "failed to parse list-intelligence response: {e}"
                 ))
             })?;
         if !li_response.ok {
-            return Err(AttachMetaError::ProtocolError);
+            return Err(AnalogAttachError::ProtocolError);
         }
         li_response.intelligence
     } else {
@@ -50,16 +50,16 @@ fn run_list_intelligence(
     };
 
     serde_json::to_value(&response)
-        .map_err(|e| AttachMetaError::InternalError(format!("failed to serialize response: {e}")))
+        .map_err(|e| AnalogAttachError::InternalError(format!("failed to serialize response: {e}")))
 }
 
 fn run_suggest(
     positionals: &[String],
     flags: &serde_json::Value,
     tool_ctx: Option<&Manifest>,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let kind = positionals.first().ok_or_else(|| {
-        AttachMetaError::InputError("suggest requires a kind argument".to_string())
+        AnalogAttachError::InputError("suggest requires a kind argument".to_string())
     })?;
 
     if meta_intelligence::is_meta_kind(kind) {
@@ -71,18 +71,18 @@ fn run_suggest(
             suggestions,
         };
         return serde_json::to_value(&response).map_err(|e| {
-            AttachMetaError::InternalError(format!("failed to serialize response: {e}"))
+            AnalogAttachError::InternalError(format!("failed to serialize response: {e}"))
         });
     }
 
     let manifest = tool_ctx.ok_or_else(|| {
-        AttachMetaError::InputError(format!(
+        AnalogAttachError::InputError(format!(
             "suggest kind '{kind}' is not available — no tool configured"
         ))
     })?;
 
     let suggest_mapping = manifest.get_command(CommandName::Suggest).ok_or_else(|| {
-        AttachMetaError::ManifestError("command 'suggest' not in manifest".to_string())
+        AnalogAttachError::ManifestError("command 'suggest' not in manifest".to_string())
     })?;
 
     let mut extra_args: Vec<String> = positionals.to_vec();

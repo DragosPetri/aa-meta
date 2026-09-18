@@ -1,16 +1,16 @@
 use std::process::Command;
 use std::time::Duration;
 
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::manifest::CommandMapping;
 
 pub fn invoke(
     mapping: &CommandMapping,
     extra_args: &[String],
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let argv = &mapping.argv;
     if argv.is_empty() {
-        return Err(AttachMetaError::ManifestError(
+        return Err(AnalogAttachError::ManifestError(
             "command argv is empty".to_string(),
         ));
     }
@@ -23,7 +23,7 @@ pub fn invoke(
     cmd.stdout(std::process::Stdio::piped());
 
     let child = cmd.spawn().map_err(|e| {
-        AttachMetaError::TransportError(format!(
+        AnalogAttachError::TransportError(format!(
             "could not run '{binary}': {e} — is it installed and on your PATH?"
         ))
     })?;
@@ -32,7 +32,7 @@ pub fn invoke(
         wait_with_timeout(child, Duration::from_millis(timeout_ms), binary)?
     } else {
         child.wait_with_output().map_err(|e| {
-            AttachMetaError::TransportError(format!("failed to wait for '{binary}': {e}"))
+            AnalogAttachError::TransportError(format!("failed to wait for '{binary}': {e}"))
         })?
     };
 
@@ -45,21 +45,21 @@ pub fn invoke(
 
     if !output.status.success() {
         let code = output.status.code().unwrap_or(-1);
-        return Err(AttachMetaError::TransportError(format!(
+        return Err(AnalogAttachError::TransportError(format!(
             "'{binary}' exited with code {code}{stderr_hint}"
         )));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if stdout.trim().is_empty() {
-        return Err(AttachMetaError::TransportError(format!(
+        return Err(AnalogAttachError::TransportError(format!(
             "'{binary}' returned no output — \
             verify '{binary}' handles this command and produces JSON on stdout{stderr_hint}"
         )));
     }
 
     serde_json::from_str(stdout.trim()).map_err(|e| {
-        AttachMetaError::TransportError(format!(
+        AnalogAttachError::TransportError(format!(
             "'{binary}' returned invalid JSON: {e}{stderr_hint}"
         ))
     })
@@ -69,7 +69,7 @@ fn wait_with_timeout(
     mut child: std::process::Child,
     timeout: Duration,
     binary: &str,
-) -> std::result::Result<std::process::Output, AttachMetaError> {
+) -> std::result::Result<std::process::Output, AnalogAttachError> {
     let start = std::time::Instant::now();
     loop {
         match child.try_wait() {
@@ -98,7 +98,7 @@ fn wait_with_timeout(
                 if start.elapsed() > timeout {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(AttachMetaError::TransportError(format!(
+                    return Err(AnalogAttachError::TransportError(format!(
                         "'{binary}' timed out after {}ms",
                         timeout.as_millis()
                     )));
@@ -106,7 +106,7 @@ fn wait_with_timeout(
                 std::thread::sleep(Duration::from_millis(50));
             }
             Err(e) => {
-                return Err(AttachMetaError::TransportError(format!(
+                return Err(AnalogAttachError::TransportError(format!(
                     "failed to wait for '{binary}': {e}"
                 )));
             }

@@ -3,8 +3,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn attach_meta() -> PathBuf {
-    env!("CARGO_BIN_EXE_attach-meta").into()
+fn analog_attach() -> PathBuf {
+    env!("CARGO_BIN_EXE_analog-attach").into()
 }
 
 struct TestEnv {
@@ -20,7 +20,7 @@ impl TestEnv {
         let dir = tempfile::tempdir().unwrap();
         let tool_path = dir.path().join("fake-tool");
         let manifest_path = dir.path().join("manifest.json");
-        let config_path = dir.path().join(".attach-meta.toml");
+        let config_path = dir.path().join(".analog-attach.toml");
         let log_path = dir.path().join("invocations.log");
 
         Self {
@@ -187,7 +187,7 @@ manifest_sha256 = "{hash}"
     }
 
     fn run_init(&self) -> std::process::Output {
-        Command::new(attach_meta())
+        Command::new(analog_attach())
             .current_dir(self.dir.path())
             .args(["init", self.tool_path.to_str().unwrap(), "--no-interactive"])
             .output()
@@ -195,14 +195,14 @@ manifest_sha256 = "{hash}"
     }
 
     fn run_cmd(&self, args: &[&str]) -> std::process::Output {
-        let mut cmd = Command::new(attach_meta());
+        let mut cmd = Command::new(analog_attach());
         cmd.current_dir(self.dir.path());
         cmd.args(args);
         cmd.output().unwrap()
     }
 
     fn run_json(&self, args: &[&str]) -> std::process::Output {
-        let mut cmd = Command::new(attach_meta());
+        let mut cmd = Command::new(analog_attach());
         cmd.current_dir(self.dir.path());
         cmd.args(["--json"]);
         cmd.args(args);
@@ -244,14 +244,14 @@ impl NoToolEnv {
     }
 
     fn run_cmd(&self, args: &[&str]) -> std::process::Output {
-        let mut cmd = Command::new(attach_meta());
+        let mut cmd = Command::new(analog_attach());
         cmd.current_dir(self.dir.path());
         cmd.args(args);
         cmd.output().unwrap()
     }
 
     fn run_json(&self, args: &[&str]) -> std::process::Output {
-        let mut cmd = Command::new(attach_meta());
+        let mut cmd = Command::new(analog_attach());
         cmd.current_dir(self.dir.path());
         cmd.args(["--json"]);
         cmd.args(args);
@@ -261,7 +261,7 @@ impl NoToolEnv {
     fn run_cmd_with_path(&self, args: &[&str], extra_path: &Path) -> std::process::Output {
         let current_path = std::env::var("PATH").unwrap_or_default();
         let new_path = format!("{}:{}", extra_path.display(), current_path);
-        let mut cmd = Command::new(attach_meta());
+        let mut cmd = Command::new(analog_attach());
         cmd.current_dir(self.dir.path());
         cmd.env("PATH", new_path);
         cmd.args(args);
@@ -302,7 +302,7 @@ fn init_returns_init_response_json() {
     env.write_default_manifest();
     env.write_default_tool();
 
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .current_dir(env.dir.path())
         .args([
             "--json",
@@ -765,19 +765,19 @@ fn generate_build_deploy() {
 
 #[test]
 fn completion_bash_prints_script() {
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .args(["completion", "bash"])
         .output()
         .unwrap();
     assert!(out.status.success());
     let script = stdout(&out);
     assert!(script.contains("__complete"), "script: {script}");
-    assert!(script.contains("attach-meta"), "script: {script}");
+    assert!(script.contains("analog-attach"), "script: {script}");
 }
 
 #[test]
 fn completion_zsh_prints_script() {
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .args(["completion", "zsh"])
         .output()
         .unwrap();
@@ -1226,7 +1226,7 @@ fn exit_code_2_for_input_error() {
 
 #[test]
 fn unknown_command_exits_2() {
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .args(["bogus-command"])
         .output()
         .unwrap();
@@ -1382,7 +1382,7 @@ fn init_missing_fields_and_config_complete() {
     env.write_default_manifest();
     env.write_default_tool();
 
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .current_dir(env.dir.path())
         .args([
             "--json",
@@ -1995,8 +1995,8 @@ fn meta_suggest_attachable_no_tool() {
         "should not contain other-tool: {values:?}"
     );
     assert!(
-        !values.contains(&"attach-meta"),
-        "should not contain attach-meta: {values:?}"
+        !values.contains(&"analog-attach"),
+        "should not contain analog-attach: {values:?}"
     );
 }
 
@@ -2067,7 +2067,7 @@ fn meta_suggest_attachable_with_tool_uses_meta() {
 
     let current_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", bin_dir.path().display(), current_path);
-    let out = Command::new(attach_meta())
+    let out = Command::new(analog_attach())
         .current_dir(env.dir.path())
         .env("PATH", new_path)
         .args(["--json", "suggest", "attachable"])
@@ -2299,7 +2299,7 @@ fn schema_responses_prints_valid_json() {
         .expect("schema responses output must be valid JSON");
     assert_eq!(
         parsed.get("$id").and_then(|v| v.as_str()),
-        Some("attach-meta/responses")
+        Some("analog-attach/responses")
     );
 }
 
@@ -2312,7 +2312,7 @@ fn schema_manifest_prints_valid_json() {
         .expect("schema manifest output must be valid JSON");
     assert_eq!(
         parsed.get("$id").and_then(|v| v.as_str()),
-        Some("attach-meta/manifest")
+        Some("analog-attach/manifest")
     );
 }
 

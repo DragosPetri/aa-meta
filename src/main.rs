@@ -12,7 +12,7 @@ mod render;
 mod schema;
 mod transport;
 
-use error::{AttachMetaError, ErrorEnvelope};
+use error::{AnalogAttachError, ErrorEnvelope};
 use protocol::manifest::CommandName;
 
 fn main() {
@@ -21,7 +21,7 @@ fn main() {
     let args = &cli.args;
 
     if args.is_empty() {
-        eprintln!("attach-meta: no command provided — try --help");
+        eprintln!("analog-attach: no command provided — try --help");
         std::process::exit(2);
     }
 
@@ -66,7 +66,7 @@ fn main() {
     let cmd = match CommandName::from_str(command_str) {
         Some(c) => c,
         None => {
-            eprintln!("attach-meta: unknown command '{command_str}'");
+            eprintln!("analog-attach: unknown command '{command_str}'");
             std::process::exit(2);
         }
     };
@@ -74,7 +74,7 @@ fn main() {
     let (mut config, config_path) = match config::load_config() {
         Ok(c) => c,
         Err(e) => exit_error(
-            AttachMetaError::InternalError(format!("config error: {e}")),
+            AnalogAttachError::InternalError(format!("config error: {e}")),
             cli.json,
         ),
     };
@@ -84,7 +84,7 @@ fn main() {
         .default_tool
         .as_deref()
         .unwrap_or_else(|| {
-            eprintln!("attach-meta: no tool specified — set default_tool in .attach-meta.toml");
+            eprintln!("analog-attach: no tool specified — set default_tool in .analog-attach.toml");
             std::process::exit(2);
         })
         .to_string();
@@ -93,7 +93,7 @@ fn main() {
         Some(t) => t.clone(),
         None => {
             exit_error(
-                AttachMetaError::ManifestError(format!("tool '{tool_name}' not found in config")),
+                AnalogAttachError::ManifestError(format!("tool '{tool_name}' not found in config")),
                 cli.json,
             );
         }
@@ -112,7 +112,7 @@ fn main() {
         Some(m) => m.clone(),
         None => {
             exit_error(
-                AttachMetaError::ManifestError(format!(
+                AnalogAttachError::ManifestError(format!(
                     "tool '{tool_name}' does not support '{}'",
                     cmd
                 )),
@@ -151,9 +151,9 @@ fn main() {
 
 fn handle_init(
     rest: &[String],
-) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
+) -> std::result::Result<(CommandName, serde_json::Value), AnalogAttachError> {
     if rest.is_empty() {
-        return Err(AttachMetaError::InputError(
+        return Err(AnalogAttachError::InputError(
             "init requires <analog_attachable> argument".to_string(),
         ));
     }
@@ -162,7 +162,7 @@ fn handle_init(
     let no_interactive = rest.iter().any(|a| a == "--no-interactive");
 
     let (mut config, config_path) = config::load_config()
-        .map_err(|e| AttachMetaError::InternalError(format!("config error: {e}")))?;
+        .map_err(|e| AnalogAttachError::InternalError(format!("config error: {e}")))?;
 
     let prompter: Box<dyn prompt::Prompter> = if no_interactive || !prompt::is_interactive() {
         Box::new(prompt::ScriptedPrompter::new(vec![]))
@@ -186,7 +186,7 @@ fn handle_intelligence(
     cmd: CommandName,
     rest: &[String],
     _json_mode: bool,
-) -> std::result::Result<(CommandName, serde_json::Value), AttachMetaError> {
+) -> std::result::Result<(CommandName, serde_json::Value), AnalogAttachError> {
     let (mut app_config, config_path) = config::load_config()
         .unwrap_or_default();
 
@@ -225,11 +225,11 @@ fn handle_schema(rest: &[String]) {
         Some("responses") => RESPONSES_SCHEMA,
         Some("manifest") => MANIFEST_SCHEMA,
         Some(other) => {
-            eprintln!("attach-meta: unknown schema '{other}' — expected 'responses' or 'manifest'");
+            eprintln!("analog-attach: unknown schema '{other}' — expected 'responses' or 'manifest'");
             std::process::exit(2);
         }
         None => {
-            eprintln!("Usage: attach-meta schema <responses|manifest>");
+            eprintln!("Usage: analog-attach schema <responses|manifest>");
             std::process::exit(2);
         }
     };
@@ -239,7 +239,7 @@ fn handle_schema(rest: &[String]) {
 
 fn handle_completion(rest: &[String]) {
     if rest.is_empty() {
-        eprintln!("Usage: attach-meta completion <bash|zsh|fish>");
+        eprintln!("Usage: analog-attach completion <bash|zsh|fish>");
         std::process::exit(2);
     }
 
@@ -247,14 +247,14 @@ fn handle_completion(rest: &[String]) {
     match complete::generate_completion_script(shell) {
         Ok(script) => print!("{script}"),
         Err(e) => {
-            eprintln!("attach-meta: {e}");
+            eprintln!("analog-attach: {e}");
             std::process::exit(2);
         }
     }
 }
 
 fn exit_with_result(
-    result: std::result::Result<(CommandName, serde_json::Value), AttachMetaError>,
+    result: std::result::Result<(CommandName, serde_json::Value), AnalogAttachError>,
     json_mode: bool,
 ) {
     match result {
@@ -271,7 +271,7 @@ fn exit_with_result(
     }
 }
 
-fn exit_error(err: AttachMetaError, json_mode: bool) -> ! {
+fn exit_error(err: AnalogAttachError, json_mode: bool) -> ! {
     let code = err.exit_code();
     if json_mode {
         let envelope = ErrorEnvelope::from_error(&err);
@@ -280,7 +280,7 @@ fn exit_error(err: AttachMetaError, json_mode: bool) -> ! {
             serde_json::to_string_pretty(&envelope).unwrap_or_default()
         );
     } else {
-        eprintln!("attach-meta: {err}");
+        eprintln!("analog-attach: {err}");
     }
     std::process::exit(code);
 }

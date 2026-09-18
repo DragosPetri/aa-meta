@@ -1,4 +1,4 @@
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::responses::{Intelligence, IntelligenceArg, Suggestion};
 
 pub const RESERVED_KINDS: &[&str] = &["attachable"];
@@ -20,10 +20,10 @@ pub fn is_meta_kind(kind: &str) -> bool {
     RESERVED_KINDS.contains(&kind)
 }
 
-pub fn meta_suggest(kind: &str, args: &[String]) -> Result<Vec<Suggestion>, AttachMetaError> {
+pub fn meta_suggest(kind: &str, args: &[String]) -> Result<Vec<Suggestion>, AnalogAttachError> {
     match kind {
         "attachable" => Ok(scan_path_for_attachables(args.first().map(|s| s.as_str()))),
-        _ => Err(AttachMetaError::InputError(format!(
+        _ => Err(AnalogAttachError::InputError(format!(
             "unknown meta intelligence kind '{kind}'"
         ))),
     }
@@ -34,7 +34,7 @@ pub fn merge_intelligence(meta: Vec<Intelligence>, tool: Vec<Intelligence>) -> V
     for ti in tool {
         if RESERVED_KINDS.contains(&ti.kind.as_str()) {
             eprintln!(
-                "attach-meta: warning: tool intelligence kind '{}' shadows reserved meta kind — using meta version",
+                "analog-attach: warning: tool intelligence kind '{}' shadows reserved meta kind — using meta version",
                 ti.kind
             );
         } else {
@@ -69,7 +69,7 @@ fn scan_path_for_attachables(partial: Option<&str>) -> Vec<Suggestion> {
             if !name.starts_with("attach-") {
                 continue;
             }
-            if name == "attach-meta" {
+            if name == "analog-attach" {
                 continue;
             }
             if !prefix.is_empty() && !name.starts_with(prefix) {

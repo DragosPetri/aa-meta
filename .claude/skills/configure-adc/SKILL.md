@@ -1,11 +1,11 @@
 ---
 name: configure-adc
-description: Guide the user through configuring an ADC device in an attach-meta workfile — channel setup, reference voltage, sampling rate, gain, and interface wiring
+description: Guide the user through configuring an ADC device in an analog-attach workfile — channel setup, reference voltage, sampling rate, gain, and interface wiring
 ---
 
 # Configure ADC
 
-You are helping the user configure an ADC (Analog-to-Digital Converter) device in an attach-meta workfile. This skill provides ADC domain knowledge — what properties mean, what valid values are, and the tradeoffs involved. The exact command invocations (how to add a node, how to set a property, what path segments to use) come from the tool's manifest, which you must always re-read rather than assume.
+You are helping the user configure an ADC (Analog-to-Digital Converter) device in an analog-attach workfile. This skill provides ADC domain knowledge — what properties mean, what valid values are, and the tradeoffs involved. The exact command invocations (how to add a node, how to set a property, what path segments to use) come from the tool's manifest, which you must always re-read rather than assume.
 
 This skill assumes the workfile already exists (Phase 2 of `attach-setup` is underway). If it does not, return to `attach-setup` to create it first.
 
@@ -15,7 +15,7 @@ This skill assumes the workfile already exists (Phase 2 of `attach-setup` is und
 
 ### Read the manifest
 
-Locate the registered tool's manifest path in `.attach-meta.toml` and read it. For every command you are about to use (`add`, `read`, `update`, `validate`, …), check its `CommandMapping`:
+Locate the registered tool's manifest path in `.analog-attach.toml` and read it. For every command you are about to use (`add`, `read`, `update`, `validate`, …), check its `CommandMapping`:
 
 - `description` — the tool author's explanation of what the command does in this tool's context; use this wording when explaining actions to the user
 - `argv` — the actual binary invocation
@@ -26,10 +26,10 @@ Re-read the manifest each time you are unsure of a command's behavior or argumen
 ### Read the current device state
 
 ```
-attach-meta --json read <device-key>
+analog-attach --json read <device-key>
 ```
 
-Parse the `ReadResponse` (read `attach-meta schema responses` for the discriminator and rendering hints). The response reveals whether this is a **fresh** device or an **existing** one:
+Parse the `ReadResponse` (read `analog-attach schema responses` for the discriminator and rendering hints). The response reveals whether this is a **fresh** device or an **existing** one:
 
 - **Fresh**: the node has no properties set. Proceed through all topics below in order.
 - **Existing**: some properties are already set. Build a status table showing each topic, its current value, and whether it looks complete. Ask the user: "Everything looks good — what would you like to change?" or, if gaps are visible, "These fields are missing — want me to walk through them?"
@@ -145,7 +145,7 @@ Use `update` to write. Re-read the manifest's `update` description for path conv
 
 After all properties are set — or after any individual change on an existing device — run:
 ```
-attach-meta --json validate <device-key>
+analog-attach --json validate <device-key>
 ```
 
 Parse `ValidationResponse` — it has no `ok` field; a non-empty `errors` array means invalid. Show all errors and warnings. For each error, suggest a fix using the ADC domain context above (e.g. missing reference source, out-of-range gain, unsupported ODR for the selected filter).
@@ -154,7 +154,7 @@ Parse `ValidationResponse` — it has no `ok` field; a non-empty `errors` array 
 
 ## Using intelligence
 
-Run `attach-meta --json list-intelligence` and check for ADC-relevant kinds (kinds whose description mentions channels, pins, gain, reference, ODR, or compatible strings). Invoke them with `attach-meta --json suggest <kind> [args]` at the right moment:
+Run `analog-attach --json list-intelligence` and check for ADC-relevant kinds (kinds whose description mentions channels, pins, gain, reference, ODR, or compatible strings). Invoke them with `analog-attach --json suggest <kind> [args]` at the right moment:
 - A kind listing valid pin names → invoke before channel input assignment (Topic 2)
 - A kind listing valid ODR values for a given filter → invoke before Topic 5
 - A kind listing compatible string values → invoke to confirm device identity (Topic 1)
@@ -165,9 +165,9 @@ Always prefer tool-authored intelligence over the generic guidance here.
 
 ## Important rules
 
-- Always use `--json` as a global flag: `attach-meta --json <subcommand> ...`
+- Always use `--json` as a global flag: `analog-attach --json <subcommand> ...`
 - Always re-read the manifest's command descriptions before invoking `add`, `update`, `read`, or `validate` — never assume path conventions or flag shapes from memory or from this skill
-- Read `attach-meta schema responses` before interpreting any response type
+- Read `analog-attach schema responses` before interpreting any response type
 - Show human-readable summaries, never raw JSON
 - If `ok: false`, show the `message` field and re-prompt before continuing
 - Never overwrite an existing value without showing the user what is currently there

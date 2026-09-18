@@ -1,11 +1,11 @@
 ---
 name: make-analog-attachable
-description: Guide the user through making an external binary conform to the attach-meta protocol (Analog Attachable)
+description: Guide the user through making an external binary conform to the analog-attach protocol (Analog Attachable)
 ---
 
 # Make Analog Attachable
 
-You are helping the user make an external binary into an Analog Attachable — a tool that conforms to the attach-meta protocol and can be registered via `attach-meta init <binary>`.
+You are helping the user make an external binary into an Analog Attachable — a tool that conforms to the analog-attach protocol and can be registered via `analog-attach init <binary>`.
 
 ## Authoritative sources
 
@@ -68,7 +68,7 @@ Help the user write a concrete manifest for their tool. For commands the tool al
 }
 ```
 
-**Protocol-owned flags**: For each command being added to the manifest, read its base schema from `docs/schemas/command_base_schemas/<command>.schema.json` and tell the user what flags the protocol already provides. These are parsed by attach-meta and forwarded automatically — the tool must handle them but must NOT redeclare them in `args` (collisions are a hard error). The tool's `args` field is only for *additional* optional flags specific to the tool; omit it when the tool has none.
+**Protocol-owned flags**: For each command being added to the manifest, read its base schema from `docs/schemas/command_base_schemas/<command>.schema.json` and tell the user what flags the protocol already provides. These are parsed by analog-attach and forwarded automatically — the tool must handle them but must NOT redeclare them in `args` (collisions are a hard error). The tool's `args` field is only for *additional* optional flags specific to the tool; omit it when the tool has none.
 
 **Suggest completions early**: Even if the user isn't planning to implement `suggest` yet, encourage adding `completions` hints as comments in the manifest so they're easy to wire up later. For example:
 
@@ -113,20 +113,20 @@ For **missing** commands, implement them. Prioritize in this order:
 - Non-zero exit: operation failed; stderr should have a human-readable reason; stdout is ignored
 - `ok: false` with exit 0 means the tool ran but the operation failed (protocol failure, not transport failure)
 
-### Step 5 — Test with attach-meta
+### Step 5 — Test with analog-attach
 
 Guide the user to:
-1. `attach-meta init <binary>` — registers the tool
-2. Verify with `attach-meta tool-config-get`
+1. `analog-attach init <binary>` — registers the tool
+2. Verify with `analog-attach tool-config-get`
 3. Walk through the CRUD cycle: `create-workfile` → `add` → `read` → `update` → `read` → `delete`
-4. Run `attach-meta validate`
+4. Run `analog-attach validate`
 
 ### Step 6 — Optional: completions and intelligence
 
 If the user wants tab-completion support:
 1. Add `completions` entries to relevant commands in the manifest
 2. Implement `list-intelligence` and `suggest`
-3. Read the `__complete` dispatch rules in `docs/spec.txt` §Completions to understand how attach-meta bridges shell TAB to `suggest`
+3. Read the `__complete` dispatch rules in `docs/spec.txt` §Completions to understand how analog-attach bridges shell TAB to `suggest`
 
 ## Important rules
 

@@ -7,26 +7,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 cargo build                        # build
 cargo test                         # run all tests (unit + integration)
-cargo test --bin attach-meta       # run unit tests only
+cargo test --bin analog-attach      # run unit tests only
 cargo test --test integration      # run integration tests only
 cargo install-local                # install binary to ~/.cargo/bin (alias in .cargo/config.toml)
-attach-meta completion zsh         # print zsh completion script to stdout
+analog-attach completion zsh        # print zsh completion script to stdout
 ```
 
 ## Architecture
 
-`attach-meta` is a meta-tool that delegates commands to any registered "analog attachable" external tool. Tools are registered via manifests, validated against a shipped JSON Schema, and dispatched via subprocess.
+`analog-attach` is a meta-tool that delegates commands to any registered "analog attachable" external tool. Tools are registered via manifests, validated against a shipped JSON Schema, and dispatched via subprocess.
 
 **Registration flow:**
-1. `attach-meta init <binary>` calls `<binary> attach-manifest`
+1. `analog-attach init <binary>` calls `<binary> attach-manifest`
 2. The tool writes a manifest file to disk and prints its path to stdout
-3. attach-meta validates the manifest against `schemas/manifest.schema.json` (JSON Schema draft 2020-12)
-4. Checks `protocol_version` major matches attach-meta's own major version (strict major-match, not 0.x-minor)
-5. Writes binary path, manifest path, and SHA-256 hash to `.attach-meta.toml`
+3. analog-attach validates the manifest against `schemas/manifest.schema.json` (JSON Schema draft 2020-12)
+4. Checks `protocol_version` major matches analog-attach's own major version (strict major-match, not 0.x-minor)
+5. Writes binary path, manifest path, and SHA-256 hash to `.analog-attach.toml`
 
 **Dispatch flow (two-phase arg parsing):**
 1. `cli.rs` — Phase 1: parses global flags (`--json`, `--verbose`) and captures the command name + remaining args as raw `Vec<String>`
-2. `config.rs` — loads config from `.attach-meta.toml` walked up from cwd → default cwd
+2. `config.rs` — loads config from `.analog-attach.toml` walked up from cwd → default cwd
 3. `manifest_store.rs` — reads manifest from stored path, compares SHA-256 hash:
    - unchanged → parse only, skip validation
    - changed → full meta-schema + version validation; persist new hash on success
@@ -43,15 +43,15 @@ attach-meta completion zsh         # print zsh completion script to stdout
 - Meta: `init`, `completion`, `__complete`
 
 **Completions** — two modes:
-- `attach-meta completion <bash|zsh|fish>` prints a script that calls `attach-meta __complete -- <subcommand> [args...] <partial>`
+- `analog-attach completion <bash|zsh|fish>` prints a script that calls `analog-attach __complete -- <subcommand> [args...] <partial>`
 - `__complete` is a shell adapter over `suggest` (spec §Completions steps 1–7)
 
 **Exit codes:**
 - `0` = `ok:true` in response
 - `1` = well-formed response with `ok:false` (protocol failure)
-- `2` = input/manifest/transport error (attach-meta's error envelope)
+- `2` = input/manifest/transport error (analog-attach's error envelope)
 
-**Config format** (`.attach-meta.toml`):
+**Config format** (`.analog-attach.toml`):
 ```toml
 [meta]
 default_tool = "attach-pickle"
@@ -69,10 +69,10 @@ settings = {}
 ```
 src/
   main.rs              entry, two-phase arg handling, top-level dispatch, exit-code mapping
-  error.rs             AttachMetaError + ErrorEnvelope + exit_code()
+  error.rs             AnalogAttachError + ErrorEnvelope + exit_code()
   cli.rs               clap derive Phase 1 (global flags + trailing_var_arg capture)
   dynargs.rs           Phase 2 runtime flag builder from manifest args; CLI→JSON + forwarded argv
-  config.rs            .attach-meta.toml load/save, walk-up precedence, multi-tool registry
+  config.rs            .analog-attach.toml load/save, walk-up precedence, multi-tool registry
   schema.rs            jsonschema (draft 2020-12) wrappers: manifest meta-schema + input validation
   manifest_store.rs    hash re-read rule (sha256 compare → validate-on-change → persist)
   transport.rs         subprocess-per-command, timeout kill, capture, error classification

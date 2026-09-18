@@ -367,12 +367,12 @@ mod tests {
     fn def_validator(def_name: &str) -> jsonschema::Validator {
         let root: serde_json::Value = serde_json::from_str(RESPONSES_SCHEMA).unwrap();
         let ref_schema = serde_json::json!({
-            "$ref": format!("attach-meta/responses#/$defs/{def_name}")
+            "$ref": format!("analog-attach/responses#/$defs/{def_name}")
         });
         jsonschema::options()
             .with_draft(jsonschema::Draft::Draft202012)
             .with_resource(
-                "attach-meta/responses",
+                "analog-attach/responses",
                 jsonschema::Resource::from_contents(root).unwrap(),
             )
             .build(&ref_schema)

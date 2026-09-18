@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 #[derive(Debug)]
-pub enum AttachMetaError {
+pub enum AnalogAttachError {
     InputError(String),
     ManifestError(String),
     TransportError(String),
@@ -9,7 +9,7 @@ pub enum AttachMetaError {
     InternalError(String),
 }
 
-impl std::fmt::Display for AttachMetaError {
+impl std::fmt::Display for AnalogAttachError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InputError(msg) => write!(f, "input error: {msg}"),
@@ -21,9 +21,9 @@ impl std::fmt::Display for AttachMetaError {
     }
 }
 
-impl std::error::Error for AttachMetaError {}
+impl std::error::Error for AnalogAttachError {}
 
-impl AttachMetaError {
+impl AnalogAttachError {
     pub fn exit_code(&self) -> i32 {
         match self {
             Self::ProtocolError => 1,
@@ -40,13 +40,13 @@ pub struct ErrorEnvelope {
 }
 
 impl ErrorEnvelope {
-    pub fn from_error(err: &AttachMetaError) -> Self {
+    pub fn from_error(err: &AnalogAttachError) -> Self {
         let category = match err {
-            AttachMetaError::InputError(_) => "input",
-            AttachMetaError::ManifestError(_) => "manifest",
-            AttachMetaError::TransportError(_) => "transport",
-            AttachMetaError::ProtocolError => "protocol",
-            AttachMetaError::InternalError(_) => "internal",
+            AnalogAttachError::InputError(_) => "input",
+            AnalogAttachError::ManifestError(_) => "manifest",
+            AnalogAttachError::TransportError(_) => "transport",
+            AnalogAttachError::ProtocolError => "protocol",
+            AnalogAttachError::InternalError(_) => "internal",
         };
         ErrorEnvelope {
             ok: false,

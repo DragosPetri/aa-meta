@@ -2,7 +2,7 @@ use anyhow::Result;
 use jsonschema::{Validator, options};
 use serde_json::Value;
 
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 
 static MANIFEST_SCHEMA: &str = include_str!("../docs/schemas/manifest.schema.json");
 
@@ -15,9 +15,9 @@ pub fn manifest_validator() -> Result<Validator> {
         .map_err(|e| anyhow::anyhow!("failed to compile manifest meta-schema: {e}"))
 }
 
-pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), AttachMetaError> {
+pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), AnalogAttachError> {
     let validator =
-        manifest_validator().map_err(|e| AttachMetaError::InternalError(e.to_string()))?;
+        manifest_validator().map_err(|e| AnalogAttachError::InternalError(e.to_string()))?;
 
     let result = validator.apply(manifest_json);
     if !result.flag() {
@@ -25,7 +25,7 @@ pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), Attac
             .iter_errors(manifest_json)
             .map(|e| format!("{} at {}", e, e.instance_path))
             .collect();
-        return Err(AttachMetaError::ManifestError(format!(
+        return Err(AnalogAttachError::ManifestError(format!(
             "manifest meta-schema validation failed:\n  {}",
             errors.join("\n  ")
         )));
@@ -37,7 +37,7 @@ pub fn validate_manifest(manifest_json: &Value) -> std::result::Result<(), Attac
     Ok(())
 }
 
-fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), AttachMetaError> {
+fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), AnalogAttachError> {
     let commands = match manifest.get("commands").and_then(|c| c.as_object()) {
         Some(c) => c,
         None => return Ok(()),
@@ -46,7 +46,7 @@ fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), Attach
     for (cmd_name, mapping) in commands {
         if let Some(args) = mapping.get("args") {
             if args.get("required").is_some() {
-                return Err(AttachMetaError::ManifestError(format!(
+                return Err(AnalogAttachError::ManifestError(format!(
                     "command '{cmd_name}' declares a top-level 'required' in args — \
                      tool-declared args may only add optional properties"
                 )));
@@ -59,7 +59,7 @@ fn check_no_required_in_args(manifest: &Value) -> std::result::Result<(), Attach
 
 fn check_no_completion_flag_shadows_command(
     manifest: &Value,
-) -> std::result::Result<(), AttachMetaError> {
+) -> std::result::Result<(), AnalogAttachError> {
     let commands = match manifest.get("commands").and_then(|c| c.as_object()) {
         Some(c) => c,
         None => return Ok(()),
@@ -74,7 +74,7 @@ fn check_no_completion_flag_shadows_command(
             .unwrap_or(false);
 
         if collides {
-            return Err(AttachMetaError::ManifestError(format!(
+            return Err(AnalogAttachError::ManifestError(format!(
                 "command '{cmd_name}' declares a flag named '{cmd_name}' — \
                  flag names must not equal their command name (reserved for positional completion)"
             )));
@@ -84,12 +84,12 @@ fn check_no_completion_flag_shadows_command(
     Ok(())
 }
 
-pub fn validate_input(schema: &Value, input: &Value) -> std::result::Result<(), AttachMetaError> {
+pub fn validate_input(schema: &Value, input: &Value) -> std::result::Result<(), AnalogAttachError> {
     let mut opts = options();
     opts.with_draft(jsonschema::Draft::Draft202012);
     let validator = opts
         .build(schema)
-        .map_err(|e| AttachMetaError::InputError(format!("failed to compile input schema: {e}")))?;
+        .map_err(|e| AnalogAttachError::InputError(format!("failed to compile input schema: {e}")))?;
 
     let result = validator.apply(input);
     if !result.flag() {
@@ -97,7 +97,7 @@ pub fn validate_input(schema: &Value, input: &Value) -> std::result::Result<(), 
             .iter_errors(input)
             .map(|e| format!("{}", e))
             .collect();
-        return Err(AttachMetaError::InputError(format!(
+        return Err(AnalogAttachError::InputError(format!(
             "input validation failed:\n  {}",
             errors.join("\n  ")
         )));
@@ -138,7 +138,7 @@ mod tests {
         let mut m = minimal_manifest();
         m["commands"].as_object_mut().unwrap().remove("add");
         let err = validate_manifest(&m).unwrap_err();
-        assert!(matches!(err, AttachMetaError::ManifestError(_)));
+        assert!(matches!(err, AnalogAttachError::ManifestError(_)));
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
         });
         let err = validate_manifest(&m).unwrap_err();
         match err {
-            AttachMetaError::ManifestError(msg) => {
+            AnalogAttachError::ManifestError(msg) => {
                 assert!(msg.contains("top-level 'required'"), "got: {msg}");
             }
             other => panic!("expected ManifestError, got: {other:?}"),
@@ -164,7 +164,7 @@ mod tests {
         let mut m = minimal_manifest();
         m["commands"]["bogus-command"] = json!({ "argv": ["tool", "bogus"] });
         let err = validate_manifest(&m).unwrap_err();
-        assert!(matches!(err, AttachMetaError::ManifestError(_)));
+        assert!(matches!(err, AnalogAttachError::ManifestError(_)));
     }
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
         });
         let input = json!({});
         let err = validate_input(&schema, &input).unwrap_err();
-        assert!(matches!(err, AttachMetaError::InputError(_)));
+        assert!(matches!(err, AnalogAttachError::InputError(_)));
     }
 
     #[test]
@@ -208,7 +208,7 @@ mod tests {
         });
         let err = validate_manifest(&m).unwrap_err();
         match err {
-            AttachMetaError::ManifestError(msg) => {
+            AnalogAttachError::ManifestError(msg) => {
                 assert!(
                     msg.contains("flag names must not equal their command name"),
                     "got: {msg}"

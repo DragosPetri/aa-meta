@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/responses",
+  "$id": "analog-attach/responses",
   "title": "Analog Attachable Response Types",
-  "description": "JSON Schemas for every response shape a conformant subtool must produce. Each command maps to a named $def; transport errors (non-zero exit, malformed JSON, timeout) are handled by attach-meta and are not modelled here.",
+  "description": "JSON Schemas for every response shape a conformant subtool must produce. Each command maps to a named $def; transport errors (non-zero exit, malformed JSON, timeout) are handled by analog-attach and are not modelled here.",
 
   "$defs": {
 
@@ -18,7 +18,7 @@
     },
 
     "InitResponse": {
-      "description": "Returned by attach-meta init. config_complete reflects whether all required config fields are present and valid after init.",
+      "description": "Returned by analog-attach init. config_complete reflects whether all required config fields are present and valid after init.",
       "allOf": [{ "$ref": "#/$defs/CommonResponse" }],
       "required": ["config_complete", "missing_fields"],
       "unevaluatedProperties": false,
@@ -339,7 +339,7 @@
     },
 
     "ValidationResponse": {
-      "description": "Returned by validate. NOTE: does not have an 'ok' field — validity is determined by whether errors is empty. The subtool always validates the full workfile; attach-meta filters by path when a path argument is given. File-level errors (path: []) always pass through regardless of path filtering.",
+      "description": "Returned by validate. NOTE: does not have an 'ok' field — validity is determined by whether errors is empty. The subtool always validates the full workfile; analog-attach filters by path when a path argument is given. File-level errors (path: []) always pass through regardless of path filtering.",
       "type": "object",
       "required": ["errors", "warnings"],
       "additionalProperties": false,

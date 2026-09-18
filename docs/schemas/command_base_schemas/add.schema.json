@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/add",
+  "$id": "analog-attach/base/add",
   "description": "Base schema for the add command. At least one of key (positional) or --name must be present.",
   "type": "object",
   "properties": {

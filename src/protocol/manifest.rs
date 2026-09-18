@@ -234,12 +234,12 @@ mod tests {
                 .pointer(p)
                 .unwrap_or_else(|| panic!("no schema at pointer '{p}'"))
                 .clone(),
-            None => serde_json::json!({ "$ref": "attach-meta/manifest" }),
+            None => serde_json::json!({ "$ref": "analog-attach/manifest" }),
         };
         jsonschema::options()
             .with_draft(jsonschema::Draft::Draft202012)
             .with_resource(
-                "attach-meta/manifest",
+                "analog-attach/manifest",
                 jsonschema::Resource::from_contents(root).unwrap(),
             )
             .build(&subschema)

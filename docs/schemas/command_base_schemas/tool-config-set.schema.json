@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/tool-config-set",
+  "$id": "analog-attach/base/tool-config-set",
   "description": "Base schema for tool-config-set. No named flags; field and value are positional.",
   "type": "object",
   "properties": {

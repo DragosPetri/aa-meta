@@ -3,7 +3,7 @@ use std::path::Path;
 use sha2::{Digest, Sha256};
 
 use crate::config::{AppConfig, ToolConfig};
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::manifest::{Manifest, parse_manifest};
 use crate::protocol::version;
 use crate::schema;
@@ -16,13 +16,13 @@ pub fn load_verified(
     tool: &ToolConfig,
     config: &mut AppConfig,
     config_path: &Path,
-) -> std::result::Result<VerifiedManifest, AttachMetaError> {
+) -> std::result::Result<VerifiedManifest, AnalogAttachError> {
     let manifest_path = tool.manifest_path.as_ref().ok_or_else(|| {
-        AttachMetaError::ManifestError("tool has no manifest_path — run 'init' first".to_string())
+        AnalogAttachError::ManifestError("tool has no manifest_path — run 'init' first".to_string())
     })?;
 
     let content = std::fs::read_to_string(manifest_path).map_err(|e| {
-        AttachMetaError::ManifestError(format!(
+        AnalogAttachError::ManifestError(format!(
             "failed to read manifest at '{}': {e}",
             manifest_path.display()
         ))
@@ -33,22 +33,22 @@ pub fn load_verified(
     let hash_changed = stored_hash != Some(new_hash.as_str());
 
     let manifest_json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| AttachMetaError::ManifestError(format!("manifest is not valid JSON: {e}")))?;
+        .map_err(|e| AnalogAttachError::ManifestError(format!("manifest is not valid JSON: {e}")))?;
 
     let manifest =
-        parse_manifest(&content).map_err(|e| AttachMetaError::ManifestError(e.to_string()))?;
+        parse_manifest(&content).map_err(|e| AnalogAttachError::ManifestError(e.to_string()))?;
 
     if hash_changed {
         schema::validate_manifest(&manifest_json)?;
 
         let binary = tool.binary.as_deref().unwrap_or("<unknown>");
         version::check_major_match(&manifest.protocol_version, binary)
-            .map_err(|e| AttachMetaError::ManifestError(e.to_string()))?;
+            .map_err(|e| AnalogAttachError::ManifestError(e.to_string()))?;
 
         if let Some(tool_entry) = config.tools.iter_mut().find(|t| t.name == tool.name) {
             tool_entry.manifest_sha256 = Some(new_hash.clone());
             if let Err(e) = config.save(config_path) {
-                eprintln!("attach-meta: warning: failed to persist updated hash: {e}");
+                eprintln!("analog-attach: warning: failed to persist updated hash: {e}");
             }
         }
     }

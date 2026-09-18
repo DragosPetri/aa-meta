@@ -1,5 +1,5 @@
 use crate::commands::CommandContext;
-use crate::error::AttachMetaError;
+use crate::error::AnalogAttachError;
 use crate::protocol::manifest::CommandName;
 use crate::transport;
 
@@ -8,7 +8,7 @@ pub fn run(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     match cmd {
         CommandName::Move => run_move(positionals, flags, ctx),
         CommandName::Rename => run_rename(positionals, flags, ctx),
@@ -42,12 +42,12 @@ fn run_move(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let mapping = ctx
         .manifest
         .get_command(CommandName::Move)
         .ok_or_else(|| {
-            AttachMetaError::ManifestError(
+            AnalogAttachError::ManifestError(
                 "command 'move' not in manifest — tool does not support move".to_string(),
             )
         })?;
@@ -63,12 +63,12 @@ fn run_rename(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let mapping = ctx
         .manifest
         .get_command(CommandName::Rename)
         .ok_or_else(|| {
-            AttachMetaError::ManifestError(
+            AnalogAttachError::ManifestError(
                 "command 'rename' not in manifest — tool does not support rename".to_string(),
             )
         })?;
@@ -86,12 +86,12 @@ fn run_alias(
     positionals: &[String],
     flags: &serde_json::Value,
     ctx: &CommandContext,
-) -> std::result::Result<serde_json::Value, AttachMetaError> {
+) -> std::result::Result<serde_json::Value, AnalogAttachError> {
     let mapping = ctx
         .manifest
         .get_command(CommandName::Alias)
         .ok_or_else(|| {
-            AttachMetaError::ManifestError(
+            AnalogAttachError::ManifestError(
                 "command 'alias' not in manifest — tool does not support aliases".to_string(),
             )
         })?;

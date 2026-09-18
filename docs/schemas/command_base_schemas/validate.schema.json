@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/validate",
+  "$id": "analog-attach/base/validate",
   "description": "Base schema for the validate command. Path is a variadic positional (zero or more identifiers).",
   "type": "object",
   "properties": {

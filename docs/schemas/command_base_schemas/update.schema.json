@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "attach-meta/base/update",
+  "$id": "analog-attach/base/update",
   "description": "Base schema for the update command. Path is a variadic positional; --with is required.",
   "type": "object",
   "properties": {
